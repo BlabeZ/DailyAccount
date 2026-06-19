@@ -140,17 +140,19 @@ void FlowPage::setupUI()
     filterLabel->setStyleSheet("font-weight: bold; background: transparent;");
     toolLayout->addWidget(filterLabel);
 
-    // --- 3b. 起始日期选择框 ---
-    m_filterStart = new QDateEdit(QDate::currentDate().addMonths(-1));
+    // --- 3b. 起始日期选择框（默认今天）---
+    m_filterStart = new QDateEdit(QDate::currentDate());
     m_filterStart->setCalendarPopup(true);
     m_filterStart->setDisplayFormat("yyyy-MM-dd");
+    m_filterStart->setMinimumWidth(160);
     toolLayout->addWidget(new QLabel("从:"));
     toolLayout->addWidget(m_filterStart);
 
-    // --- 3c. 结束日期选择框 ---
+    // --- 3c. 结束日期选择框（默认今天）---
     m_filterEnd = new QDateEdit(QDate::currentDate());
     m_filterEnd->setCalendarPopup(true);
     m_filterEnd->setDisplayFormat("yyyy-MM-dd");
+    m_filterEnd->setMinimumWidth(160);
     toolLayout->addWidget(new QLabel("至:"));
     toolLayout->addWidget(m_filterEnd);
 
