@@ -184,10 +184,11 @@ void FlowPage::loadPage()
         dateItem->setSizeHint(0, QSize(0, 36));
         ui->m_tree->addTopLevelItem(dateItem);
 
-        // 创建子行（流水明细）：日期栏留空，其余栏显示数据
+        // 创建子行（流水明细）：日期栏留空，ID栏显示当天序号
+        int localIdx = 0;
         for (const auto& t : txns) {
             QTreeWidgetItem *txItem = new QTreeWidgetItem;
-            txItem->setText(1, QString::number(t.id));
+            txItem->setText(1, QString::number(++localIdx));
             txItem->setText(2, QString::fromStdString(typeToChinese(t.type)));
             txItem->setText(3, QString(t.type == RecordType::INCOME ? "+%1" : "-%1")
                                    .arg(t.amount, 0, 'f', 2));
