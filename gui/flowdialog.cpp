@@ -160,6 +160,8 @@ void FlowDialog::setupUI()
     form->addRow("分类:", m_categoryCombo);
     connect(m_categoryCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &FlowDialog::onCategoryChanged);
+    connect(m_categoryCombo, QOverload<int>::of(&QComboBox::activated),
+            this, &FlowDialog::onCategoryChanged);
 
     // 二级子分类（仅"饮食"等有子分类的类别显示）
     m_subCategoryCombo = new QComboBox;
