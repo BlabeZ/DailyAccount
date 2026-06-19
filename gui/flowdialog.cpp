@@ -28,6 +28,7 @@
 #include <QButtonGroup>     // 【按钮组】将多个单选按钮归为一组，确保互斥选择
 #include <QMessageBox>      // 【消息框】弹出警告和提示信息
 #include <QDate>            // 【日期类】获取当前日期
+#include <QCalendarWidget>  // 【日历控件】弹出日历选择日期
 #include <QLabel>           // 【标签控件】显示标题文字
 
 
@@ -84,11 +85,45 @@ void FlowDialog::setupUI()
     form->setSpacing(12);
     form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-    // 日期字段
+    // 日期字段：增减箭头 + 日历按钮
     m_dateEdit = new QDateEdit(QDate::currentDate());
-    m_dateEdit->setCalendarPopup(true);
+    m_dateEdit->setCalendarPopup(false);
     m_dateEdit->setDisplayFormat("yyyy-MM-dd");
-    form->addRow("日期:", m_dateEdit);
+    m_dateEdit->setMinimumWidth(200);
+    QHBoxLayout *dateRow = new QHBoxLayout;
+    dateRow->setSpacing(4);
+    dateRow->addWidget(m_dateEdit);
+    QPushButton *calBtn = new QPushButton("📅");
+    calBtn->setFixedSize(28, 28);
+    calBtn->setCursor(Qt::PointingHandCursor);
+    calBtn->setToolTip("打开日历选择");
+    calBtn->setStyleSheet(
+        "QPushButton { background: #EBF5FB; border: 1px solid #D5DCE6; "
+        "border-radius: 4px; font-size: 14px; }"
+        "QPushButton:hover { background: #3498DB; }");
+    connect(calBtn, &QPushButton::clicked, this, [this]() {
+        QDate d = m_dateEdit->date();
+        // 使用QCalendarWidget或简单的日期编辑
+        QDialog calDlg(this);
+        calDlg.setWindowTitle("选择日期");
+        QVBoxLayout *calLayout = new QVBoxLayout(&calDlg);
+        QCalendarWidget *cal = new QCalendarWidget;
+        cal->setSelectedDate(d);
+        calLayout->addWidget(cal);
+        QHBoxLayout *calBtns = new QHBoxLayout;
+        calBtns->addStretch();
+        QPushButton *ok = new QPushButton("确定");
+        ok->setStyleSheet("QPushButton { background: #3498DB; color: white; "
+                          "border-radius: 6px; padding: 8px 24px; }");
+        calBtns->addWidget(ok);
+        calLayout->addLayout(calBtns);
+        connect(ok, &QPushButton::clicked, &calDlg, &QDialog::accept);
+        connect(cal, &QCalendarWidget::clicked, &calDlg, &QDialog::accept);
+        if (calDlg.exec() == QDialog::Accepted)
+            m_dateEdit->setDate(cal->selectedDate());
+    });
+    dateRow->addWidget(calBtn);
+    form->addRow("日期:", dateRow);
 
     // 类型字段（单选按钮组）
     m_radioExpense = new QRadioButton("支出");
