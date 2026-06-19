@@ -875,13 +875,13 @@ void DashboardPage::refreshCategoryBreakdown()
         QString barColor = colors[i % colors.size()];
         QWidget *bar = new QWidget;
         bar->setFixedHeight(14);
-        bar->setStyleSheet("background: #F0F3F7; border: none; border-radius: 7px;");
+        bar->setStyleSheet("background: #F0F3F7; border: none;");
         QHBoxLayout *barLayout = new QHBoxLayout(bar);
         barLayout->setContentsMargins(0, 0, 0, 0);
         QWidget *fill = new QWidget;
         fill->setFixedHeight(14);
         fill->setStyleSheet(
-            QString("background: %1; border: none; border-radius: 7px;").arg(barColor));
+            QString("background: %1; border: none;").arg(barColor));
         // 用stretch比例模拟百分比：fill占pct%，空白占(100-pct)%
         barLayout->addWidget(fill, (int)pct);
         barLayout->addStretch(100 - (int)pct);
