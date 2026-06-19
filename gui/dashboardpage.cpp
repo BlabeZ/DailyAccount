@@ -871,22 +871,20 @@ void DashboardPage::refreshCategoryBreakdown()
          *     - background: 当前分类的颜色（如#E74C3C红色）
          *     - border-radius: 7px（与整体圆角一致）
          */
-        QProgressBar *bar = new QProgressBar;
-        bar->setRange(0, 100);
-        bar->setValue((int)pct);
-        bar->setTextVisible(false);
-        bar->setFixedHeight(14);
-
-        // 从颜色列表中获取当前分类的颜色（循环使用，防止越界）
+        // 自定义圆角柱状图：QWidget背景 + 内嵌QHBoxLayout彩色条
         QString barColor = colors[i % colors.size()];
-
-        // 通过样式表设置进度条的颜色
-        // arg(barColor) 将颜色值插入到 QProgressBar::chunk 的 background 属性中
-        bar->setStyleSheet(
-            QString("QProgressBar { background: #F0F3F7; border: 1px solid #E8ECF1; "
-                    "border-radius: 7px; min-height: 12px; }"
-                    "QProgressBar::chunk { background: %1; border-radius: 7px; }")
-                .arg(barColor));
+        QWidget *bar = new QWidget;
+        bar->setFixedHeight(14);
+        bar->setStyleSheet("background: #F0F3F7; border: none; border-radius: 7px;");
+        QHBoxLayout *barLayout = new QHBoxLayout(bar);
+        barLayout->setContentsMargins(0, 0, 0, 0);
+        QWidget *fill = new QWidget;
+        fill->setFixedHeight(14);
+        fill->setStyleSheet(
+            QString("background: %1; border: none; border-radius: 7px;").arg(barColor));
+        // 用stretch比例模拟百分比：fill占pct%，空白占(100-pct)%
+        barLayout->addWidget(fill, (int)pct);
+        barLayout->addStretch(100 - (int)pct);
 
         /*
          * 子元素 3：百分比标签
