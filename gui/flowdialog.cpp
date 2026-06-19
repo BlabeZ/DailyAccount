@@ -267,11 +267,6 @@ void FlowDialog::populateCategories(RecordType type)
 // ============================================================================
 void FlowDialog::setRecord(const Record& t)
 {
-    // 阻断信号避免联动触发导致子分类被覆盖
-    m_categoryCombo->blockSignals(true);
-    m_radioExpense->blockSignals(true);
-    m_radioIncome->blockSignals(true);
-
     if (!t.date.empty()) {
         m_dateEdit->setDate(QDate::fromString(
             QString::fromStdString(t.date), "yyyy-MM-dd"));
@@ -294,25 +289,16 @@ void FlowDialog::setRecord(const Record& t)
         QString mainCat = catStr.left(parenPos);
         QString subCat = catStr.mid(parenPos + 1).chopped(1);
         int idx = m_categoryCombo->findText(mainCat);
-        if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
-        // 手动填充子分类
-        m_subCategoryCombo->clear();
-        m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
-        int subIdx = m_subCategoryCombo->findText(subCat);
-        if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
-        m_subCategoryCombo->setVisible(true);
-        m_subCategoryLabel->setVisible(true);
+        if (idx >= 0) {
+            m_categoryCombo->setCurrentIndex(idx);
+            // setCurrentIndex 会触发 onCategoryChanged，填充子分类选项
+            int subIdx = m_subCategoryCombo->findText(subCat);
+            if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
+        }
     } else {
         int idx = m_categoryCombo->findText(catStr);
         if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
-        m_subCategoryCombo->setVisible(false);
-        m_subCategoryLabel->setVisible(false);
     }
-
-    // 恢复信号
-    m_categoryCombo->blockSignals(false);
-    m_radioExpense->blockSignals(false);
-    m_radioIncome->blockSignals(false);
 
     m_noteEdit->setText(QString::fromStdString(t.note));
 }
