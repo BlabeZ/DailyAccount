@@ -883,8 +883,8 @@ void DashboardPage::refreshCategoryBreakdown()
         // 通过样式表设置进度条的颜色
         // arg(barColor) 将颜色值插入到 QProgressBar::chunk 的 background 属性中
         bar->setStyleSheet(
-            QString("QProgressBar { background: #F0F3F7; border: none; border-radius: 7px; }"
-                    "QProgressBar::chunk { background: %1; border-radius: 7px; }")
+            QString("QProgressBar { background: #F0F3F7; border: none; border-radius: 10px; }"
+                    "QProgressBar::chunk { background: %1; border-radius: 10px; }")
                 .arg(barColor));
 
         /*
