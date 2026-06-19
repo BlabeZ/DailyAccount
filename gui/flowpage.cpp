@@ -336,16 +336,10 @@ void FlowPage::loadPage()
                 dayExpense += t.amount;
         }
 
-        // 创建日期头部行
+        // 创建母行（日期头部）：仅显示日期和笔数，其余栏为空
         QTreeWidgetItem *dateItem = new QTreeWidgetItem;
         dateItem->setText(0, QString::fromStdString(date));
-        dateItem->setText(1, QString("%1笔").arg(txns.size()));
-        dateItem->setText(2, QString("收入 +%1  支出 -%2")
-                               .arg(dayIncome, 0, 'f', 2)
-                               .arg(dayExpense, 0, 'f', 2));
-        dateItem->setText(3, QString("净额 %1%2")
-                               .arg(dayIncome - dayExpense >= 0 ? "+" : "")
-                               .arg(dayIncome - dayExpense, 0, 'f', 2));
+        dateItem->setText(1, QString("共%1笔").arg(txns.size()));
         dateItem->setBackground(0, QColor("#F5F7FA"));
         QFont dateFont;
         dateFont.setBold(true);
@@ -354,10 +348,9 @@ void FlowPage::loadPage()
         dateItem->setSizeHint(0, QSize(0, 36));
         m_tree->addTopLevelItem(dateItem);
 
-        // 创建该日期下的所有流水子节点
+        // 创建子行（流水明细）：日期栏留空，其余栏显示数据
         for (const auto& t : txns) {
             QTreeWidgetItem *txItem = new QTreeWidgetItem;
-            txItem->setText(0, QString::fromStdString(t.date));
             txItem->setText(1, QString::number(t.id));
             txItem->setText(2, QString::fromStdString(typeToChinese(t.type)));
             txItem->setText(3, QString(t.type == RecordType::INCOME ? "+%1" : "-%1")
