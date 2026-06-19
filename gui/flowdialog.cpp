@@ -243,5 +243,19 @@ void FlowDialog::onAccept()
         return;
     }
 
+    // 防错机制：日期大于今日时弹出确认提示
+    if (m_dateEdit->date() > QDate::currentDate()) {
+        QString pickedDate = m_dateEdit->date().toString("yyyy-MM-dd");
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("日期确认");
+        msgBox.setText(QString("录入日期为 %1，晚于今天。\n是否继续记录？").arg(pickedDate));
+        msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+        msgBox.setDefaultButton(QMessageBox::Cancel);
+        msgBox.setIcon(QMessageBox::Question);
+        if (msgBox.exec() != QMessageBox::Ok) {
+            return;  // 用户选择取消，放弃本次操作
+        }
+    }
+
     accept();
 }
