@@ -231,8 +231,9 @@ void FlowDialog::onTypeChanged()
 }
 
 // 主分类变化时显示/隐藏子分类
-void FlowDialog::onCategoryChanged(int)
+void FlowDialog::onCategoryChanged(int index)
 {
+    if (index < 0) return; // 忽略清空触发的无效信号
     QString cat = m_categoryCombo->currentText();
     m_subCategoryCombo->clear();
     m_subCategoryCombo->setVisible(false);
