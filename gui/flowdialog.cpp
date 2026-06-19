@@ -110,6 +110,7 @@ void FlowDialog::setupUI()
 
     // 金额字段（0.00时显示为空白）
     m_amountSpin = new QDoubleSpinBox;
+    m_amountSpin->setButtonSymbols(QAbstractSpinBox::NoButtons);
     m_amountSpin->setRange(0.00, 99999999.99);
     m_amountSpin->setDecimals(2);
     m_amountSpin->setPrefix("");
