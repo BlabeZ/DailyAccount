@@ -19,3 +19,4 @@ data/
 .idea/
 *.user
 *.pro.user*
+ui_flowpage.h
