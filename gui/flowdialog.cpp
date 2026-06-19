@@ -44,6 +44,8 @@ FlowDialog::FlowDialog(CategoryManager& catMan, QWidget *parent)
     setupUI();
     setRecord(Record{});
     m_categoryCombo->setCurrentIndex(-1);
+    m_subCategoryCombo->setVisible(false);
+    m_subCategoryLabel->setVisible(false);
     m_amountSpin->setValue(0.00);
 }
 
@@ -293,10 +295,10 @@ void FlowDialog::setRecord(const Record& t)
         updateSubCategory();  // 确保子分类已填充
         int subIdx = m_subCategoryCombo->findText(subCat);
         if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
-    } else {
+    } else if (!catStr.isEmpty()) {
         int idx2 = m_categoryCombo->findText(catStr);
         if (idx2 >= 0) m_categoryCombo->setCurrentIndex(idx2);
-        updateSubCategory();  // 非饮食时隐藏子分类
+        updateSubCategory();
     }
 
     m_noteEdit->setText(QString::fromStdString(t.note));
