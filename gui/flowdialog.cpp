@@ -288,16 +288,20 @@ void FlowDialog::setRecord(const Record& t)
     if (parenPos > 0) {
         QString mainCat = catStr.left(parenPos);
         QString subCat = catStr.mid(parenPos + 1).chopped(1);
+        // 手动填充子分类选项（不依赖可能不触发的信号）
+        m_subCategoryCombo->clear();
+        m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
+        int subIdx = m_subCategoryCombo->findText(subCat);
+        if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
+        m_subCategoryCombo->setVisible(true);
+        m_subCategoryLabel->setVisible(true);
         int idx = m_categoryCombo->findText(mainCat);
-        if (idx >= 0) {
-            m_categoryCombo->setCurrentIndex(idx);
-            // setCurrentIndex 会触发 onCategoryChanged，填充子分类选项
-            int subIdx = m_subCategoryCombo->findText(subCat);
-            if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
-        }
-    } else {
-        int idx = m_categoryCombo->findText(catStr);
         if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
+    } else {
+        m_subCategoryCombo->setVisible(false);
+        m_subCategoryLabel->setVisible(false);
+        int idx2 = m_categoryCombo->findText(catStr);
+        if (idx2 >= 0) m_categoryCombo->setCurrentIndex(idx2);
     }
 
     m_noteEdit->setText(QString::fromStdString(t.note));
