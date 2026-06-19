@@ -247,6 +247,8 @@ void FlowDialog::updateSubCategory()
     m_subCategoryCombo->setVisible(hasSub);
     m_subCategoryLabel->setVisible(hasSub);
     if (hasSub) {
+        if (cat == "交通") m_subCategoryLabel->setText("交通类型:");
+        else m_subCategoryLabel->setText("饮食类型:");
         m_subCategoryCombo->addItems(items);
         m_subCategoryCombo->setCurrentIndex(-1);
     }
