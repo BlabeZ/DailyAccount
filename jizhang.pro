@@ -45,6 +45,9 @@ HEADERS += \
     backend/storage.h \
     backend/ledger.h
 
+FORMS += \
+    gui/flowpage.ui
+
 # Windows specific
 win32 {
     LIBS += -luser32
