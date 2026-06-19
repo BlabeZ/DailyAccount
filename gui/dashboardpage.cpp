@@ -846,7 +846,7 @@ void DashboardPage::refreshCategoryBreakdown()
          * cs.category 是 std::string 类型，需要转换为 QString。
          */
         QLabel *nameLabel = new QLabel(QString::fromStdString(cs.category));
-        nameLabel->setFixedWidth(50);
+        nameLabel->setFixedWidth(60);
         nameLabel->setStyleSheet("font-size: 12px; background: transparent;");
 
         /*
