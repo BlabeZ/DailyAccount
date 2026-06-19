@@ -313,10 +313,9 @@ Record FlowDialog::getRecord() const
     t.date = m_dateEdit->date().toString("yyyy-MM-dd").toStdString();
     t.type = m_radioIncome->isChecked() ? RecordType::INCOME : RecordType::EXPENSE;
     t.amount = m_amountSpin->value();
-    // 组合分类：如有子分类且已选择则格式为"主分类(子分类)"
+    // 组合分类：如有子分类且用户已选择则格式为"主分类(子分类)"
     QString cat = m_categoryCombo->currentText();
-    if (m_subCategoryCombo->isVisible() && m_subCategoryCombo->currentIndex() >= 0
-        && !m_subCategoryCombo->currentText().isEmpty()) {
+    if (cat == "饮食" && m_subCategoryCombo->currentIndex() >= 0) {
         cat += "(" + m_subCategoryCombo->currentText() + ")";
     }
     t.category = cat.toStdString();
