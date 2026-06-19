@@ -241,6 +241,7 @@ void FlowDialog::updateSubCategory()
     m_subCategoryLabel->setVisible(hasSub);
     if (hasSub) {
         m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
+        m_subCategoryCombo->setCurrentIndex(-1);  // 不自动选中，由setRecord或用户选择
     }
 }
 
@@ -312,9 +313,10 @@ Record FlowDialog::getRecord() const
     t.date = m_dateEdit->date().toString("yyyy-MM-dd").toStdString();
     t.type = m_radioIncome->isChecked() ? RecordType::INCOME : RecordType::EXPENSE;
     t.amount = m_amountSpin->value();
-    // 组合分类：如有子分类则格式为"主分类(子分类)"
+    // 组合分类：如有子分类且已选择则格式为"主分类(子分类)"
     QString cat = m_categoryCombo->currentText();
-    if (m_subCategoryCombo->isVisible() && m_subCategoryCombo->currentIndex() >= 0) {
+    if (m_subCategoryCombo->isVisible() && m_subCategoryCombo->currentIndex() >= 0
+        && !m_subCategoryCombo->currentText().isEmpty()) {
         cat += "(" + m_subCategoryCombo->currentText() + ")";
     }
     t.category = cat.toStdString();
