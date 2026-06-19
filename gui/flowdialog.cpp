@@ -168,7 +168,7 @@ void FlowDialog::setupUI()
     m_subCategoryCombo = new QComboBox;
     m_subCategoryCombo->setMinimumWidth(200);
     m_subCategoryCombo->setVisible(false);
-    m_subCategoryLabel = new QLabel("子分类:");
+    m_subCategoryLabel = new QLabel("饮食类型:");
     form->addRow(m_subCategoryLabel, m_subCategoryCombo);
     m_subCategoryLabel->setVisible(false);
 
