@@ -1,0 +1,21 @@
+# Build outputs
+release/
+debug/
+*.o
+*.obj
+*.exe
+moc_*.cpp
+Makefile
+Makefile.Release
+Makefile.Debug
+.qmake.stash
+object_script.*
+
+# Runtime data
+data/
+
+# IDE files
+.vscode/
+.idea/
+*.user
+*.pro.user*
