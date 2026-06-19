@@ -158,6 +158,16 @@ void FlowDialog::setupUI()
     m_categoryCombo = new QComboBox;
     m_categoryCombo->setMinimumWidth(200);
     form->addRow("分类:", m_categoryCombo);
+    connect(m_categoryCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &FlowDialog::onCategoryChanged);
+
+    // 二级子分类（仅"饮食"等有子分类的类别显示）
+    m_subCategoryCombo = new QComboBox;
+    m_subCategoryCombo->setMinimumWidth(200);
+    m_subCategoryCombo->setVisible(false);
+    m_subCategoryLabel = new QLabel("子分类:");
+    form->addRow(m_subCategoryLabel, m_subCategoryCombo);
+    m_subCategoryLabel->setVisible(false);
 
     // 备注字段
     m_noteEdit = new QLineEdit;
@@ -220,6 +230,21 @@ void FlowDialog::onTypeChanged()
     populateCategories(type);
 }
 
+// 主分类变化时显示/隐藏子分类
+void FlowDialog::onCategoryChanged(int)
+{
+    QString cat = m_categoryCombo->currentText();
+    m_subCategoryCombo->clear();
+    m_subCategoryCombo->setVisible(false);
+    m_subCategoryLabel->setVisible(false);
+
+    if (cat == "饮食") {
+        m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
+        m_subCategoryCombo->setVisible(true);
+        m_subCategoryLabel->setVisible(true);
+    }
+}
+
 
 // ============================================================================
 // 填  充  分  类  列  表
@@ -239,6 +264,11 @@ void FlowDialog::populateCategories(RecordType type)
 // ============================================================================
 void FlowDialog::setRecord(const Record& t)
 {
+    // 阻断信号避免联动触发导致子分类被覆盖
+    m_categoryCombo->blockSignals(true);
+    m_radioExpense->blockSignals(true);
+    m_radioIncome->blockSignals(true);
+
     if (!t.date.empty()) {
         m_dateEdit->setDate(QDate::fromString(
             QString::fromStdString(t.date), "yyyy-MM-dd"));
@@ -254,10 +284,32 @@ void FlowDialog::setRecord(const Record& t)
 
     m_amountSpin->setValue(t.amount > 0 ? t.amount : 0.01);
 
-    int idx = m_categoryCombo->findText(QString::fromStdString(t.category));
-    if (idx >= 0) {
-        m_categoryCombo->setCurrentIndex(idx);
+    // 解析组合分类"饮食(午饭)" → 主分类+子分类
+    QString catStr = QString::fromStdString(t.category);
+    int parenPos = catStr.indexOf('(');
+    if (parenPos > 0) {
+        QString mainCat = catStr.left(parenPos);
+        QString subCat = catStr.mid(parenPos + 1).chopped(1);
+        int idx = m_categoryCombo->findText(mainCat);
+        if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
+        // 手动填充子分类
+        m_subCategoryCombo->clear();
+        m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
+        int subIdx = m_subCategoryCombo->findText(subCat);
+        if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
+        m_subCategoryCombo->setVisible(true);
+        m_subCategoryLabel->setVisible(true);
+    } else {
+        int idx = m_categoryCombo->findText(catStr);
+        if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
+        m_subCategoryCombo->setVisible(false);
+        m_subCategoryLabel->setVisible(false);
     }
+
+    // 恢复信号
+    m_categoryCombo->blockSignals(false);
+    m_radioExpense->blockSignals(false);
+    m_radioIncome->blockSignals(false);
 
     m_noteEdit->setText(QString::fromStdString(t.note));
 }
@@ -273,7 +325,12 @@ Record FlowDialog::getRecord() const
     t.date = m_dateEdit->date().toString("yyyy-MM-dd").toStdString();
     t.type = m_radioIncome->isChecked() ? RecordType::INCOME : RecordType::EXPENSE;
     t.amount = m_amountSpin->value();
-    t.category = m_categoryCombo->currentText().toStdString();
+    // 组合分类：如有子分类则格式为"主分类(子分类)"
+    QString cat = m_categoryCombo->currentText();
+    if (m_subCategoryCombo->isVisible() && m_subCategoryCombo->currentIndex() >= 0) {
+        cat += "(" + m_subCategoryCombo->currentText() + ")";
+    }
+    t.category = cat.toStdString();
     t.note = m_noteEdit->text().toStdString();
     return t;
 }

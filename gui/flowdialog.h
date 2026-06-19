@@ -16,7 +16,8 @@
 #define FLOWDIALOG_H
 
 // ---------- Qt 框架头文件 ----------
-#include <QDialog>          // 【对话框基类】所有对话框窗口的父类。
+#include <QLabel>           // QLabel —— 子分类标签
+#include <QDialog>          //【对话框基类】所有对话框窗口的父类。
                             // FlowDialog 继承自它，因此拥有模态显示（exec()）
                             // 和返回值机制（Accepted/Rejected）。
 
@@ -152,6 +153,7 @@ private slots:
     // ========================================================================
 
     void onTypeChanged();
+    void onCategoryChanged(int index);
 
     /*
      * 函  数: onAccept
@@ -181,6 +183,8 @@ private:
     QRadioButton    *m_radioIncome;
     QDoubleSpinBox  *m_amountSpin;
     QComboBox       *m_categoryCombo;
+    QComboBox       *m_subCategoryCombo;
+    QLabel          *m_subCategoryLabel;
     QLineEdit       *m_noteEdit;
 };
 
