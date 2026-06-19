@@ -157,9 +157,9 @@ void PieChartWidget::paintEvent(QPaintEvent *) {
 
     // -------- 计算饼图的几何参数 --------
     // side: 饼图直径 = min(宽, 高) - 20（左右各留10像素边距）
-    int side = std::min(width(), height()) - 20;
+    int side = (int)(std::min(width(), height()) * 0.7) - 10;
     // cx, cy: 控件的中心坐标 —— 饼图的圆心位置
-    int cx = width() / 2;
+    int cx = side / 2 + 20;
     int cy = height() / 2;
     // pieRect: 饼图的外接矩形（QRectF使用浮点数，精度更高）
     // 左上角坐标 = (cx - side/2, cy - side/2)，宽 = 高 = side
@@ -201,7 +201,23 @@ void PieChartWidget::paintEvent(QPaintEvent *) {
     QRectF innerRect(cx - innerR, cy - innerR, innerR * 2, innerR * 2);
     p.setBrush(QColor("#F5F7FA"));   // 用页面背景色填充内圆
     p.setPen(Qt::NoPen);             // NoPen表示不描边 —— 内圆边缘不可见
-    p.drawEllipse(innerRect);        // 绘制内圆（椭圆在正方形区域 = 正圆）
+    p.drawEllipse(innerRect);
+
+    // 右侧图例：色块 + 分类名称 + 百分比
+    int legendX = cx + side / 2 + 16;
+    int legendY = cy - (int)m_data.size() * 13;
+    p.setFont(QFont("Microsoft YaHei", 9));
+    for (size_t i = 0; i < m_data.size(); i++) {
+        int y = legendY + (int)i * 22;
+        QColor color(m_colors[i % m_colors.size()]);
+        p.setBrush(color);
+        p.setPen(Qt::NoPen);
+        p.drawRect(legendX, y, 12, 12);
+        p.setPen(QColor("#2C3E50"));
+        double pct = m_data[i].second / m_total * 100.0;
+        p.drawText(legendX + 18, y + 11,
+                   QString("%1 (%2%)").arg(m_data[i].first).arg(pct, 0, 'f', 1));
+    }        // 绘制内圆（椭圆在正方形区域 = 正圆）
     // 此时内圆"覆盖"在饼图扇区的中心部分之上，形成从外向内看——
     // 各扇区的颜色占据外环，中心是一块白色圆形区域（甜甜圈孔）
 }
