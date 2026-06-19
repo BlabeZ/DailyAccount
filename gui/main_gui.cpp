@@ -178,6 +178,30 @@ int main(int argc, char *argv[])
             outline: none;
         }
 
+        /* 日期选择器右侧日历按钮 */
+        QDateEdit::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: center right;
+            width: 28px;
+            border-left: 1px solid #D5DCE6;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            background: #EBF5FB;
+        }
+        QDateEdit::drop-down:hover {
+            background: #3498DB;
+        }
+        QDateEdit::down-arrow {
+            image: none;
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #3498DB;
+        }
+        QDateEdit::drop-down:hover .down-arrow {
+            border-top-color: white;
+        }
+
         /* ====================================================================
          *   б
          * и
