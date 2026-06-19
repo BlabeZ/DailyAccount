@@ -154,6 +154,7 @@ private slots:
 
     void onTypeChanged();
     void onCategoryChanged(int index);
+    void updateSubCategory();
 
     /*
      * 函  数: onAccept

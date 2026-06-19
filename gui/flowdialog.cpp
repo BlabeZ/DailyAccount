@@ -158,10 +158,9 @@ void FlowDialog::setupUI()
     m_categoryCombo = new QComboBox;
     m_categoryCombo->setMinimumWidth(200);
     form->addRow("分类:", m_categoryCombo);
-    connect(m_categoryCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &FlowDialog::onCategoryChanged);
+    // 用户选择分类时同步更新子分类
     connect(m_categoryCombo, QOverload<int>::of(&QComboBox::activated),
-            this, &FlowDialog::onCategoryChanged);
+            this, [this](int) { updateSubCategory(); });
 
     // 二级子分类（仅"饮食"等有子分类的类别显示）
     m_subCategoryCombo = new QComboBox;
@@ -232,21 +231,21 @@ void FlowDialog::onTypeChanged()
     populateCategories(type);
 }
 
-// 主分类变化时显示/隐藏子分类
-void FlowDialog::onCategoryChanged(int index)
+// 根据当前主分类同步更新子分类选项和可见性
+void FlowDialog::updateSubCategory()
 {
-    if (index < 0) return; // 忽略清空触发的无效信号
     QString cat = m_categoryCombo->currentText();
     m_subCategoryCombo->clear();
-    m_subCategoryCombo->setVisible(false);
-    m_subCategoryLabel->setVisible(false);
-
-    if (cat == "饮食") {
+    bool hasSub = (cat == "饮食");
+    m_subCategoryCombo->setVisible(hasSub);
+    m_subCategoryLabel->setVisible(hasSub);
+    if (hasSub) {
         m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
-        m_subCategoryCombo->setVisible(true);
-        m_subCategoryLabel->setVisible(true);
     }
 }
+
+// 保留旧名称兼容
+void FlowDialog::onCategoryChanged(int) { updateSubCategory(); }
 
 
 // ============================================================================
@@ -288,20 +287,15 @@ void FlowDialog::setRecord(const Record& t)
     if (parenPos > 0) {
         QString mainCat = catStr.left(parenPos);
         QString subCat = catStr.mid(parenPos + 1).chopped(1);
-        // 手动填充子分类选项（不依赖可能不触发的信号）
-        m_subCategoryCombo->clear();
-        m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
-        int subIdx = m_subCategoryCombo->findText(subCat);
-        if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
-        m_subCategoryCombo->setVisible(true);
-        m_subCategoryLabel->setVisible(true);
         int idx = m_categoryCombo->findText(mainCat);
         if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
+        updateSubCategory();  // 确保子分类已填充
+        int subIdx = m_subCategoryCombo->findText(subCat);
+        if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
     } else {
-        m_subCategoryCombo->setVisible(false);
-        m_subCategoryLabel->setVisible(false);
         int idx2 = m_categoryCombo->findText(catStr);
         if (idx2 >= 0) m_categoryCombo->setCurrentIndex(idx2);
+        updateSubCategory();  // 非饮食时隐藏子分类
     }
 
     m_noteEdit->setText(QString::fromStdString(t.note));
