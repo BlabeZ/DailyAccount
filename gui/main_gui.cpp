@@ -202,6 +202,38 @@ int main(int argc, char *argv[])
             border-top-color: white;
         }
 
+        /* 日期选择器上下增减箭头按钮 */
+        QDateEdit::up-button, QDateEdit::down-button {
+            background: #EBF5FB;
+            border: 1px solid #D5DCE6;
+            border-radius: 2px;
+            width: 18px;
+        }
+        QDateEdit::up-button:hover, QDateEdit::down-button:hover {
+            background: #3498DB;
+            border-color: #3498DB;
+        }
+        QDateEdit::up-arrow {
+            image: none;
+            width: 0; height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 5px solid #3498DB;
+        }
+        QDateEdit::down-arrow {
+            image: none;
+            width: 0; height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid #3498DB;
+        }
+        QDateEdit::up-button:hover .up-arrow {
+            border-bottom-color: white;
+        }
+        QDateEdit::down-button:hover .down-arrow {
+            border-top-color: white;
+        }
+
         /* ====================================================================
          *   б
          * и
