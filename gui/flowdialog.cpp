@@ -42,6 +42,8 @@ FlowDialog::FlowDialog(CategoryManager& catMan, QWidget *parent)
     setWindowTitle(" 添加记录");
     setupUI();
     setRecord(Record{});
+    m_categoryCombo->setCurrentIndex(-1);
+    m_amountSpin->setValue(0.00);
 }
 
 
