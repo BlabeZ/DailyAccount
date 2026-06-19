@@ -112,11 +112,11 @@ void FlowDialog::setupUI()
     m_amountSpin = new QDoubleSpinBox;
     m_amountSpin->setRange(0.00, 99999999.99);
     m_amountSpin->setDecimals(2);
-    m_amountSpin->setPrefix("¥ ");
+    m_amountSpin->setPrefix("");
     m_amountSpin->setSpecialValueText(" ");
     m_amountSpin->setValue(0.00);
     m_amountSpin->setMinimumWidth(200);
-    form->addRow("金额:", m_amountSpin);
+    form->addRow("金额(￥):", m_amountSpin);
 
     // 分类字段
     m_categoryCombo = new QComboBox;
