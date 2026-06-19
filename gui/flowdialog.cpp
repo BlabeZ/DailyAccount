@@ -108,10 +108,10 @@ void FlowDialog::setupUI()
 
     // 金额字段
     m_amountSpin = new QDoubleSpinBox;
-    m_amountSpin->setRange(0.01, 99999999.99);
+    m_amountSpin->setRange(0.00, 99999999.99);
     m_amountSpin->setDecimals(2);
     m_amountSpin->setPrefix(" ");
-    m_amountSpin->setValue(0.01);
+    m_amountSpin->setValue(0.00);
     m_amountSpin->setMinimumWidth(200);
     form->addRow("金额:", m_amountSpin);
 
@@ -164,8 +164,9 @@ void FlowDialog::setupUI()
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(okBtn, &QPushButton::clicked, this, &FlowDialog::onAccept);
 
-    // 初始化分类列表
+    // 初始化分类列表，默认不选中任何分类
     populateCategories(RecordType::EXPENSE);
+    m_categoryCombo->setCurrentIndex(-1);
 }
 
 
