@@ -130,6 +130,20 @@ void FlowDialog::setupUI()
 
     // 底部按钮栏
     QHBoxLayout *btnLayout = new QHBoxLayout;
+
+    // 删除按钮（仅编辑模式显示，左下角）
+    QPushButton *delBtn = new QPushButton("删除记录");
+    delBtn->setStyleSheet(
+        "QPushButton { background: #E74C3C; color: white; border-radius: 6px; "
+        "padding: 10px 20px; } QPushButton:hover { background: #CB4335; }");
+    btnLayout->addWidget(delBtn);
+    // 添加模式下隐藏删除按钮
+    if (m_editId < 0) delBtn->setVisible(false);
+    connect(delBtn, &QPushButton::clicked, this, [this]() {
+        m_deleteRequested = true;
+        reject();
+    });
+
     btnLayout->addStretch();
 
     QPushButton *cancelBtn = new QPushButton("取消");

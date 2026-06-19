@@ -144,6 +144,7 @@ public:
      * 返  回: 当前编辑的流水 ID。如果是添加模式，返回 -1。
      */
     int getRecordId() const { return m_editId; }
+    bool deleteRequested() const { return m_deleteRequested; }
 
 private slots:
     // ========================================================================
@@ -173,6 +174,7 @@ private:
     CategoryManager& m_catMan;
 
     int m_editId = -1;
+    bool m_deleteRequested = false;
 
     QDateEdit       *m_dateEdit;
     QRadioButton    *m_radioExpense;

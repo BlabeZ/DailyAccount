@@ -241,6 +241,8 @@ void FlowPage::onEdit(int id)
         if (auto *mw = window()) {
             QMetaObject::invokeMethod(mw, "refreshAll", Qt::QueuedConnection);
         }
+    } else if (dlg.deleteRequested()) {
+        onDelete(id);
     }
 }
 
@@ -259,13 +261,21 @@ void FlowPage::onDelete(int id)
                        .arg(QString::fromStdString(t->date))
                        .arg(t->amount, 0, 'f', 2)
                        .arg(QString::fromStdString(t->category)));
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    msgBox.setDefaultButton(QMessageBox::No);
-    msgBox.setStyleSheet(
-        "QMessageBox { background: white; }"
-        "QPushButton { min-width: 80px; }");
+    msgBox.setIcon(QMessageBox::Question);
+    msgBox.setStandardButtons(QMessageBox::NoButton);
+    QPushButton *btnYes = msgBox.addButton("确认删除", QMessageBox::YesRole);
+    QPushButton *btnNo  = msgBox.addButton("取消", QMessageBox::NoRole);
+    btnYes->setStyleSheet("QPushButton { background: #E74C3C; color: white; "
+                          "border-radius: 6px; padding: 8px 20px; min-width: 90px; }"
+                          "QPushButton:hover { background: #CB4335; }");
+    btnNo->setStyleSheet("QPushButton { background: #FFFFFF; color: #2C3E50; "
+                         "border: 1px solid #D5DCE6; border-radius: 6px; "
+                         "padding: 8px 20px; min-width: 90px; }"
+                         "QPushButton:hover { background: #F5F7FA; }");
+    msgBox.setDefaultButton(btnNo);
 
-    if (msgBox.exec() == QMessageBox::Yes) {
+    msgBox.exec();
+    if (msgBox.clickedButton() == btnYes) {
         m_ledger.deleteRecord(id);
         refresh();
         if (auto *mw = window()) {
