@@ -217,32 +217,6 @@ void FlowPage::setupUI()
 
     mainLayout->addWidget(m_tree, 1);
 
-    // ====================================================================
-    // 步骤5：分页栏
-    // ====================================================================
-    QHBoxLayout *pageLayout = new QHBoxLayout;
-    pageLayout->addStretch();
-
-    m_btnPrev = new QPushButton(" 上一页");
-    m_btnPrev->setStyleSheet(
-        "QPushButton { background: #ECF0F1; color: #2C3E50; padding: 8px 16px; }"
-        "QPushButton:hover { background: #D5DCE6; }"
-        "QPushButton:disabled { background: #F5F7FA; color: #BDC3C7; }");
-    pageLayout->addWidget(m_btnPrev);
-    connect(m_btnPrev, &QPushButton::clicked, this, &FlowPage::onPagePrev);
-
-    m_pageLabel = new QLabel("第 1 页");
-    m_pageLabel->setStyleSheet("font-size: 14px; color: #2C3E50; padding: 0 16px; "
-                                "background: transparent;");
-    pageLayout->addWidget(m_pageLabel);
-
-    m_btnNext = new QPushButton("下一页 ");
-    m_btnNext->setStyleSheet(m_btnPrev->styleSheet());
-    pageLayout->addWidget(m_btnNext);
-    connect(m_btnNext, &QPushButton::clicked, this, &FlowPage::onPageNext);
-
-    pageLayout->addStretch();
-    mainLayout->addLayout(pageLayout);
 }
 
 
@@ -251,7 +225,6 @@ void FlowPage::setupUI()
 // ============================================================================
 void FlowPage::refresh()
 {
-    m_currentPage = 0;
     loadPage();
 }
 
@@ -261,7 +234,6 @@ void FlowPage::refresh()
 // ============================================================================
 void FlowPage::onFilterChanged()
 {
-    m_currentPage = 0;
     loadPage();
 }
 
@@ -307,22 +279,8 @@ void FlowPage::loadPage()
     }
     std::sort(dates.begin(), dates.end(), std::greater<std::string>());
 
-    // 计算分页信息
-    int totalDates = (int)dates.size();
-    int totalPages = std::max(1, (totalDates + m_datesPerPage - 1) / m_datesPerPage);
-
-    if (m_currentPage >= totalPages) m_currentPage = totalPages - 1;
-    if (m_currentPage < 0) m_currentPage = 0;
-
-    m_pageLabel->setText(QString("第 %1 / %2 页").arg(m_currentPage + 1).arg(totalPages));
-    m_btnPrev->setEnabled(m_currentPage > 0);
-    m_btnNext->setEnabled(m_currentPage < totalPages - 1);
-
-    int startIdx = m_currentPage * m_datesPerPage;
-    int endIdx   = std::min(startIdx + m_datesPerPage, totalDates);
-
-    // 渲染当前页的日期组
-    for (int di = startIdx; di < endIdx; di++) {
+    // 渲染全部日期组（滚动浏览，不再分页）
+    for (int di = 0; di < (int)dates.size(); di++) {
         const std::string& date = dates[di];
         const auto& txns = grouped[date];
 
@@ -439,19 +397,3 @@ void FlowPage::onDelete(int id)
 }
 
 
-// ============================================================================
-// 翻  页  槽  函  数
-// ============================================================================
-void FlowPage::onPagePrev()
-{
-    if (m_currentPage > 0) {
-        m_currentPage--;
-        loadPage();
-    }
-}
-
-void FlowPage::onPageNext()
-{
-    m_currentPage++;
-    loadPage();
-}
