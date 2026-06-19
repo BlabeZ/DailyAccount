@@ -178,6 +178,42 @@ int main(int argc, char *argv[])
             outline: none;
         }
 
+        /* 日期选择器上下箭头按钮 */
+        QDateEdit::up-button, QDateEdit::down-button,
+        QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+            background: #F5F7FA;
+            border: 1px solid #D5DCE6;
+            border-radius: 3px;
+            width: 20px;
+        }
+        QDateEdit::up-button:hover, QDateEdit::down-button:hover,
+        QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
+            background: #3498DB;
+            border-color: #3498DB;
+        }
+        QDateEdit::up-arrow, QDoubleSpinBox::up-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 6px solid #7F8C8D;
+            width: 0; height: 0;
+        }
+        QDateEdit::down-arrow, QDoubleSpinBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #7F8C8D;
+            width: 0; height: 0;
+        }
+        QDateEdit::up-button:hover .up-arrow,
+        QDoubleSpinBox::up-button:hover .up-arrow {
+            border-bottom-color: white;
+        }
+        QDateEdit::down-button:hover .down-arrow,
+        QDoubleSpinBox::down-button:hover .down-arrow {
+            border-top-color: white;
+        }
+
         /* ====================================================================
          *   б
          * и
