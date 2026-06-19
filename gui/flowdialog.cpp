@@ -238,12 +238,17 @@ void FlowDialog::updateSubCategory()
 {
     QString cat = m_categoryCombo->currentText();
     m_subCategoryCombo->clear();
-    bool hasSub = (cat == "饮食");
+    QStringList items;
+    if (cat == "饮食")
+        items = {"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"};
+    else if (cat == "交通")
+        items = {"公交", "地铁", "打车", "共享单车", "火车", "飞机", "其他"};
+    bool hasSub = !items.isEmpty();
     m_subCategoryCombo->setVisible(hasSub);
     m_subCategoryLabel->setVisible(hasSub);
     if (hasSub) {
-        m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
-        m_subCategoryCombo->setCurrentIndex(-1);  // 不自动选中，由setRecord或用户选择
+        m_subCategoryCombo->addItems(items);
+        m_subCategoryCombo->setCurrentIndex(-1);
     }
 }
 
@@ -317,7 +322,7 @@ Record FlowDialog::getRecord() const
     t.amount = m_amountSpin->value();
     // 组合分类：如有子分类且用户已选择则格式为"主分类(子分类)"
     QString cat = m_categoryCombo->currentText();
-    if (cat == "饮食" && m_subCategoryCombo->currentIndex() >= 0) {
+    if ((cat == "饮食" || cat == "交通") && m_subCategoryCombo->currentIndex() >= 0) {
         cat += "(" + m_subCategoryCombo->currentText() + ")";
     }
     t.category = cat.toStdString();
