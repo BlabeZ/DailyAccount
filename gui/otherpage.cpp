@@ -150,8 +150,103 @@ void OtherPage::setupUI()
 
     mainLayout->addWidget(exportCard);
 
+    // ---- 清除数据卡片 ----
+    QFrame *clearCard = new QFrame;
+    clearCard->setProperty("class", "card");
+    clearCard->setStyleSheet(
+        "QFrame { background: white; border-radius: 10px; "
+        "border: 1px solid #E8ECF1; padding: 24px; }");
+
+    QVBoxLayout *clearLayout = new QVBoxLayout(clearCard);
+    clearLayout->setSpacing(16);
+
+    QLabel *clearTitle = new QLabel("🗑️ 清除数据");
+    clearTitle->setStyleSheet(
+        "font-size: 16px; font-weight: bold; color: #E74C3C; "
+        "background: transparent;");
+    clearLayout->addWidget(clearTitle);
+
+    QLabel *clearDesc = new QLabel(
+        "永久删除所有记账记录和自定义分类。\n"
+        "此操作不可撤销，建议先导出数据备份。");
+    clearDesc->setStyleSheet(
+        "font-size: 13px; color: #555; background: transparent; line-height: 1.6;");
+    clearDesc->setWordWrap(true);
+    clearLayout->addWidget(clearDesc);
+
+    QPushButton *clearBtn = new QPushButton("🗑️ 清除全部数据");
+    clearBtn->setStyleSheet(
+        "QPushButton { background: #E74C3C; color: white; border: none; "
+        "border-radius: 8px; padding: 14px 32px; font-size: 15px; font-weight: bold; }"
+        "QPushButton:hover { background: #CB4335; }");
+    clearBtn->setCursor(Qt::PointingHandCursor);
+    clearBtn->setMinimumHeight(48);
+    clearLayout->addWidget(clearBtn);
+    connect(clearBtn, &QPushButton::clicked, this, &OtherPage::onClearData);
+
+    mainLayout->addWidget(clearCard);
+
     // ---- 底部留白 ----
     mainLayout->addStretch();
+}
+
+// ============================================================================
+// 方法: onClearData —— 三次确认后清除全部数据
+// ============================================================================
+void OtherPage::onClearData()
+{
+    // 第一次确认
+    QMessageBox msg1(this);
+    msg1.setWindowTitle("清除数据 - 第1次确认");
+    msg1.setText("⚠️ 确定要清除所有记账数据吗？\n此操作不可撤销！");
+    msg1.setInformativeText("建议先使用数据导出功能备份数据。");
+    msg1.setIcon(QMessageBox::Warning);
+    msg1.setStandardButtons(QMessageBox::NoButton);
+    QPushButton *btn1Yes = msg1.addButton("继续", QMessageBox::YesRole);
+    QPushButton *btn1No  = msg1.addButton("取消", QMessageBox::NoRole);
+    btn1Yes->setStyleSheet("QPushButton { background: #E74C3C; color: white; "
+                           "border-radius: 6px; padding: 8px 20px; min-width: 90px; }");
+    msg1.setDefaultButton(btn1No);
+    msg1.exec();
+    if (msg1.clickedButton() != btn1Yes) return;
+
+    // 第二次确认
+    QMessageBox msg2(this);
+    msg2.setWindowTitle("清除数据 - 第2次确认");
+    msg2.setText("⚠️ 所有记账记录和自定义分类将被永久删除。\n是否继续？");
+    msg2.setIcon(QMessageBox::Warning);
+    msg2.setStandardButtons(QMessageBox::NoButton);
+    QPushButton *btn2Yes = msg2.addButton("继续", QMessageBox::YesRole);
+    QPushButton *btn2No  = msg2.addButton("取消", QMessageBox::NoRole);
+    btn2Yes->setStyleSheet("QPushButton { background: #E74C3C; color: white; "
+                           "border-radius: 6px; padding: 8px 20px; min-width: 90px; }");
+    msg2.setDefaultButton(btn2No);
+    msg2.exec();
+    if (msg2.clickedButton() != btn2Yes) return;
+
+    // 第三次确认
+    QMessageBox msg3(this);
+    msg3.setWindowTitle("清除数据 - 最后确认");
+    msg3.setText("🚫 这是最后一次确认。\n清除后数据无法恢复！");
+    msg3.setIcon(QMessageBox::Critical);
+    msg3.setStandardButtons(QMessageBox::NoButton);
+    QPushButton *btn3Yes = msg3.addButton("确认清除", QMessageBox::YesRole);
+    QPushButton *btn3No  = msg3.addButton("取消", QMessageBox::NoRole);
+    btn3Yes->setStyleSheet("QPushButton { background: #C0392B; color: white; "
+                           "border-radius: 6px; padding: 8px 20px; min-width: 90px; "
+                           "font-weight: bold; }");
+    msg3.setDefaultButton(btn3No);
+    msg3.exec();
+    if (msg3.clickedButton() != btn3Yes) return;
+
+    // 执行清除：删除所有记录
+    const auto& all = m_ledger.getAllRecords();
+    // 从后往前删除避免索引问题
+    for (int i = (int)all.size() - 1; i >= 0; i--) {
+        m_ledger.deleteRecord(all[i].id);
+    }
+
+    QMessageBox::information(this, "完成", "✅ 所有数据已清除。");
 }
 
 // ============================================================================
