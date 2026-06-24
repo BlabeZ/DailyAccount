@@ -30,6 +30,7 @@
  */
 
 #include "mainwindow.h"
+#include "homepage.h"
 #include "dashboardpage.h"
 #include "flowpage.h"
 #include "statisticspage.h"
@@ -68,7 +69,7 @@ MainWindow::MainWindow(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
     : QMainWindow(parent), m_ledger(ledger), m_catMan(catMan)
 {
     setupUI();                // 搭建主窗口的全部界面结构
-    setNavButtonActive(0);    // 默认选中侧边栏的第一个导航按钮（概览）
+    // 启动时显示首页（索引0），不选中任何导航按钮
     updateStatusBar();        // 初始化底部状态栏的金额显示
 }
 
@@ -241,8 +242,8 @@ void MainWindow::setupUI()
     m_stackedWidget = new QStackedWidget;
     m_stackedWidget->setStyleSheet("background-color: #F5F7FA;");  // 浅灰蓝色背景
 
-    // 创建四个功能页面实例
-    // 每个页面都接收账本（m_ledger）和分类管理器（m_catMan）的引用
+    // 创建首页和五个功能页面实例
+    m_homePage         = new HomePage;
     m_dashboardPage    = new DashboardPage(m_ledger, m_catMan);
     m_flowPage  = new FlowPage(m_ledger, m_catMan);
     m_statisticsPage   = new StatisticsPage(m_ledger, m_catMan);
@@ -250,16 +251,18 @@ void MainWindow::setupUI()
     m_otherPage        = new OtherPage(m_ledger);
 
     // 将页面按固定顺序添加到堆叠容器中
-    // 索引 0：概览页 —— 显示汇总卡片、最近流水、分类分布
-    m_stackedWidget->addWidget(m_dashboardPage);     // 0
-    // 索引 1：账目页 —— 显示流水列表、添加/编辑流水
-    m_stackedWidget->addWidget(m_flowPage);    // 1
-    // 索引 2：统计页 —— 显示图表和统计分析
-    m_stackedWidget->addWidget(m_statisticsPage);     // 2
-    // 索引 3：分类页 —— 管理收入和支出的分类
-    m_stackedWidget->addWidget(m_categoryPage);       // 3
-    // 索引 4：其他功能页 —— 数据导出等辅助功能
-    m_stackedWidget->addWidget(m_otherPage);          // 4
+    // 索引 0：启动首页 —— 显示"记账本"欢迎页
+    m_stackedWidget->addWidget(m_homePage);           // 0
+    // 索引 1：概览页 —— 显示汇总卡片、最近流水、分类分布
+    m_stackedWidget->addWidget(m_dashboardPage);      // 1
+    // 索引 2：账目页 —— 显示流水列表、添加/编辑流水
+    m_stackedWidget->addWidget(m_flowPage);           // 2
+    // 索引 3：统计页 —— 显示图表和统计分析
+    m_stackedWidget->addWidget(m_statisticsPage);     // 3
+    // 索引 4：分类页 —— 管理收入和支出的分类
+    m_stackedWidget->addWidget(m_categoryPage);       // 4
+    // 索引 5：其他功能页 —— 数据导出等辅助功能
+    m_stackedWidget->addWidget(m_otherPage);          // 5
 
     // 将堆叠容器添加到主布局的右侧，参数 '1' 表示 stretch factor
     // stretch factor 设为 1 意味着内容区会占据所有剩余的水平空间
@@ -327,11 +330,11 @@ void MainWindow::setupSidebar(QVBoxLayout *sideLayout)
      * 这些文本将直接作为按钮的显示标签
      */
     std::vector<NavItem> navs = {
-        {"  概览", ""},   // 索引 0 —— 对应概览页（DashboardPage）
-        {"  账目", ""},   // 索引 1 —— 对应账目页（FlowPage）
-        {"  统计", ""},   // 索引 2 —— 对应统计页（StatisticsPage）
-        {"  分类", ""},   // 索引 3 —— 对应分类页（CategoryPage）
-        {"  其他", ""}    // 索引 4 —— 对应其他功能页（OtherPage）
+        {"  概览", ""},   // → 切换到索引 1（DashboardPage）
+        {"  账目", ""},   // → 切换到索引 2（FlowPage）
+        {"  统计", ""},   // → 切换到索引 3（StatisticsPage）
+        {"  分类", ""},   // → 切换到索引 4（CategoryPage）
+        {"  其他", ""}    // → 切换到索引 5（OtherPage）
     };
 
     /*
@@ -370,7 +373,7 @@ void MainWindow::setupSidebar(QVBoxLayout *sideLayout)
          *   使用 lambda 可以捕获额外的参数（pageIndex），灵活地将
          *   按钮点击事件与特定的页面索引绑定。
          */
-        int pageIndex = static_cast<int>(i);
+        int pageIndex = static_cast<int>(i) + 1;  // +1 因为索引 0 是启动首页
         connect(btn, &QPushButton::clicked, this, [this, pageIndex]() {
             switchToPage(pageIndex);
         });
@@ -465,7 +468,8 @@ void MainWindow::setupStatusBar()
 void MainWindow::switchToPage(int index)
 {
     // 步骤 1：高亮侧边栏中对应索引的导航按钮
-    setNavButtonActive(index);
+    // 页面索引 1~5 对应导航按钮索引 0~4（索引0=首页无对应按钮）
+    setNavButtonActive(index - 1);
 
     // 步骤 2：切换 QStackedWidget 当前显示的页面
     // QStackedWidget 会自动隐藏之前的页面，显示索引为 index 的页面
@@ -474,11 +478,12 @@ void MainWindow::switchToPage(int index)
     // 步骤 3：根据页面索引刷新对应页面的数据
     // 使用 switch 语句确保每个分支都处理正确的页面
     switch (index) {
-    case 0: m_dashboardPage->refresh();   break;  // 刷新概览页：更新汇总卡片、流水列表等
-    case 1: m_flowPage->refresh(); break;  // 刷新账目页：更新流水记录列表
-    case 2: m_statisticsPage->refresh();  break;  // 刷新统计页：更新图表和统计数据
-    case 3: m_categoryPage->refresh();    break;  // 刷新分类页：更新分类列表
-    case 4: m_otherPage->refresh();       break;  // 刷新其他功能页
+    case 0: /* 启动首页 —— 无数据需刷新 */   break;
+    case 1: m_dashboardPage->refresh();   break;  // 刷新概览页
+    case 2: m_flowPage->refresh();        break;  // 刷新账目页
+    case 3: m_statisticsPage->refresh();  break;  // 刷新统计页
+    case 4: m_categoryPage->refresh();    break;  // 刷新分类页
+    case 5: m_otherPage->refresh();       break;  // 刷新其他功能页
     }
 }
 

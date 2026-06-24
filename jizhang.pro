@@ -8,6 +8,7 @@ QT       += core gui widgets
 TEMPLATE  = app
 CONFIG   += c++17
 TARGET   = jizhang
+DESTDIR  = $$PWD
 RC_ICONS  =
 
 # Header include paths (backend business logic + GUI layer)
@@ -21,6 +22,7 @@ QMAKE_LFLAGS += -static-libstdc++ -static-libgcc
 
 SOURCES += \
     gui/main_gui.cpp \
+    gui/homepage.cpp \
     gui/mainwindow.cpp \
     gui/dashboardpage.cpp \
     gui/flowpage.cpp \
@@ -34,6 +36,7 @@ SOURCES += \
 
 HEADERS += \
     gui/mainwindow.h \
+    gui/homepage.h \
     gui/dashboardpage.h \
     gui/flowpage.h \
     gui/flowdialog.h \

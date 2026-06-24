@@ -17,6 +17,8 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
+cd /d "%~dp0\.."
+
 echo [1/3] Cleaning old build files...
 if exist Makefile del /q Makefile
 if exist Makefile.Release del /q Makefile.Release
@@ -24,6 +26,7 @@ if exist Makefile.Debug del /q Makefile.Debug
 if exist release rmdir /s /q release
 if exist debug rmdir /s /q debug
 if exist .qmake.stash del /q .qmake.stash
+if exist "记账.exe" del /q "记账.exe"
 
 echo [2/3] Running qmake...
 qmake jizhang.pro
@@ -36,14 +39,14 @@ if %ERRORLEVEL% NEQ 0 (
 echo [3/3] Building...
 mingw32-make
 if %ERRORLEVEL% EQU 0 (
+    if exist jizhang.exe (
+        ren jizhang.exe "记账.exe"
+    )
     echo.
     echo ====================================
     echo   Build SUCCESS!
-    echo   Binary: release\jizhang.exe
+    echo   Binary: 记账.exe
     echo ====================================
-    echo.
-    copy /y release\jizhang.exe "..\记账.exe" >nul 2>nul
-    echo   Copied to: ..\记账.exe
 ) else (
     echo.
     echo [ERROR] Build failed. Check errors above.
