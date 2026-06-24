@@ -86,9 +86,8 @@ FlowPage::FlowPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
     // 筛选按钮 → 触发筛选
     connect(ui->btnFilter, &QPushButton::clicked, this, &FlowPage::onFilterChanged);
 
-    // 分类下拉筛选 → 切换分类时自动筛选
-    connect(ui->m_filterCategory, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &FlowPage::onFilterChanged);
+    // 分类筛选按钮 → 弹出级联菜单
+    connect(ui->m_filterCategory, &QPushButton::clicked, this, &FlowPage::showCategoryMenu);
 
     // 添加记录按钮 → 弹出添加对话框
     connect(ui->m_btnAdd, &QPushButton::clicked, this, &FlowPage::onAdd);
@@ -136,30 +135,20 @@ void FlowPage::loadPage()
     QString startDate = ui->m_filterStart->date().toString("yyyy-MM-dd");
     QString endDate   = ui->m_filterEnd->date().toString("yyyy-MM-dd");
     QString typeFilter = ui->m_filterType->currentText();
-    QString catFilter  = ui->m_filterCategory->currentText();
 
     // 从账本获取指定日期范围内的所有流水
     std::vector<Record> filtered;
     auto rangeTxns = m_ledger.getRecordsByDateRange(
         startDate.toStdString(), endDate.toStdString());
 
-    // 更新分类筛选下拉框：收集日期范围内所有唯一分类
-    {
-        std::set<std::string> catSet;
-        for (const auto& t : rangeTxns)
-            catSet.insert(t.category);
-
-        // 阻止信号避免触发递归筛选
-        ui->m_filterCategory->blockSignals(true);
-        QString prevCat = ui->m_filterCategory->currentText();
-        ui->m_filterCategory->clear();
-        ui->m_filterCategory->addItem("全部分类");
-        for (const auto& cat : catSet)
-            ui->m_filterCategory->addItem(QString::fromStdString(cat));
-        // 恢复之前选中的分类（如果还存在）
-        int idx = ui->m_filterCategory->findText(prevCat);
-        if (idx >= 0) ui->m_filterCategory->setCurrentIndex(idx);
-        ui->m_filterCategory->blockSignals(false);
+    // 更新分类筛选按钮文本
+    if (m_selectedCategory.isEmpty()) {
+        ui->m_filterCategory->setText("全部分类 ▼");
+    } else if (m_selectedSubCategory.isEmpty()) {
+        ui->m_filterCategory->setText(m_selectedCategory + " ▼");
+    } else {
+        ui->m_filterCategory->setText(
+            m_selectedCategory + "(" + m_selectedSubCategory + ") ▼");
     }
 
     // 按类型过滤
@@ -170,11 +159,19 @@ void FlowPage::loadPage()
     }
 
     // 按分类过滤
-    if (catFilter != "全部分类" && !catFilter.isEmpty()) {
+    if (!m_selectedCategory.isEmpty()) {
         std::vector<Record> catFiltered;
         for (const auto& t : filtered) {
-            if (QString::fromStdString(t.category) == catFilter)
-                catFiltered.push_back(t);
+            QString cat = QString::fromStdString(t.category);
+            if (m_selectedSubCategory.isEmpty()) {
+                // 只选了一级分类：匹配 "饮食" 或 "饮食(...)" 开头的记录
+                if (cat == m_selectedCategory || cat.startsWith(m_selectedCategory + "("))
+                    catFiltered.push_back(t);
+            } else {
+                // 选了二级子分类：精确匹配 "饮食(午饭)"
+                if (cat == m_selectedCategory + "(" + m_selectedSubCategory + ")")
+                    catFiltered.push_back(t);
+            }
         }
         filtered = std::move(catFiltered);
     }
@@ -321,3 +318,103 @@ void FlowPage::onDelete(int id)
 }
 
 
+// ============================================================================
+// 分  类  级  联  菜  单
+// ============================================================================
+/*
+ * 函  数: showCategoryMenu
+ * 功  能: 弹出分类筛选级联菜单。
+ *         从当前日期范围内的记录中提取唯一分类，
+ *         一级菜单显示所有一级分类（饮食、交通等），
+ *         含二级子分类的选项悬停时右侧弹出子菜单。
+ */
+void FlowPage::showCategoryMenu()
+{
+    // 收集当前日期范围内所有记录的唯一分类
+    QString startDate = ui->m_filterStart->date().toString("yyyy-MM-dd");
+    QString endDate   = ui->m_filterEnd->date().toString("yyyy-MM-dd");
+    auto rangeTxns = m_ledger.getRecordsByDateRange(
+        startDate.toStdString(), endDate.toStdString());
+
+    // 解析分类：提取一级分类和二级子分类
+    std::map<QString, std::set<QString>> catMap;  // 一级分类 → 子分类集合
+    for (const auto& t : rangeTxns) {
+        QString cat = QString::fromStdString(t.category);
+        int parenPos = cat.indexOf('(');
+        if (parenPos > 0) {
+            QString main = cat.left(parenPos);
+            QString sub = cat.mid(parenPos + 1, cat.length() - parenPos - 2);
+            catMap[main].insert(sub);
+        } else {
+            catMap[cat];  // 确保一级分类出现在map中（子分类集合为空）
+        }
+    }
+
+    // 构建弹出菜单
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background: white; border: 1px solid #D5DCE6; border-radius: 8px; "
+        "padding: 4px; }"
+        "QMenu::item { padding: 8px 32px 8px 16px; border-radius: 4px; }"
+        "QMenu::item:selected { background: #EBF5FB; color: #2C3E50; }");
+
+    // "全部分类"选项
+    QAction *allAction = menu.addAction("全部分类");
+    QFont boldFont = allAction->font();
+    boldFont.setBold(true);
+    allAction->setFont(boldFont);
+    QObject::connect(allAction, &QAction::triggered, this, [this]() {
+        m_selectedCategory.clear();
+        m_selectedSubCategory.clear();
+        loadPage();
+    });
+    menu.addSeparator();
+
+    // 为每个一级分类创建菜单项
+    for (const auto& [mainCat, subCats] : catMap) {
+        if (subCats.empty()) {
+            // 无子分类：直接添加一级菜单项
+            QAction *action = menu.addAction(mainCat);
+            QObject::connect(action, &QAction::triggered, this, [this, mainCat]() {
+                m_selectedCategory = mainCat;
+                m_selectedSubCategory.clear();
+                loadPage();
+            });
+        } else {
+            // 有子分类：创建二级子菜单
+            QMenu *subMenu = new QMenu(&menu);
+            subMenu->setStyleSheet(menu.styleSheet());
+
+            // 子菜单第一项："全部<分类>"
+            QAction *allSubAction = subMenu->addAction(QString("全部%1").arg(mainCat));
+            QFont subBoldFont = allSubAction->font();
+            subBoldFont.setBold(true);
+            allSubAction->setFont(subBoldFont);
+            QObject::connect(allSubAction, &QAction::triggered, this, [this, mainCat]() {
+                m_selectedCategory = mainCat;
+                m_selectedSubCategory.clear();
+                loadPage();
+            });
+            subMenu->addSeparator();
+
+            // 各个子分类
+            for (const auto& subCat : subCats) {
+                QAction *subAction = subMenu->addAction(subCat);
+                QObject::connect(subAction, &QAction::triggered, this,
+                    [this, mainCat, subCat]() {
+                        m_selectedCategory = mainCat;
+                        m_selectedSubCategory = subCat;
+                        loadPage();
+                    });
+            }
+
+            // 将子菜单挂到一级菜单上（menu → subMenu 级联）
+            QAction *mainAction = menu.addMenu(subMenu);
+            mainAction->setText(mainCat);
+        }
+    }
+
+    // 在按钮下方弹出菜单
+    menu.exec(ui->m_filterCategory->mapToGlobal(
+        QPoint(0, ui->m_filterCategory->height())));
+}

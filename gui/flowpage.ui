@@ -74,10 +74,12 @@
        </widget>
       </item>
 
-      <!-- 分类筛选 -->
+      <!-- 分类筛选（级联菜单按钮） -->
       <item>
-       <widget class="QComboBox" name="m_filterCategory">
-        <item><property name="text"><string>全部分类</string></property></item>
+       <widget class="QPushButton" name="m_filterCategory">
+        <property name="text"><string>全部分类 ▼</string></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background: #FFFFFF; border: 1px solid #D5DCE6; border-radius: 6px; padding: 8px 16px; font-size: 13px; color: #2C3E50; } QPushButton:hover { border-color: #3498DB; }</string></property>
+        <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
        </widget>
       </item>
 
