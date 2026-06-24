@@ -170,8 +170,14 @@ std::vector<CategorySummary> Ledger::getCategorySummaries(RecordType type) const
     double grandTotal = 0.0;
     for (const auto& t : m_records) {
         if (t.type != type) continue;
-        auto& cs = map[t.category];
-        cs.category = t.category;
+        // 剥离二级子分类：例如 "饮食(午饭)" → "饮食"，"交通(公交)" → "交通"
+        std::string mainCat = t.category;
+        size_t parenPos = mainCat.find('(');
+        if (parenPos != std::string::npos) {
+            mainCat = mainCat.substr(0, parenPos);
+        }
+        auto& cs = map[mainCat];
+        cs.category = mainCat;
         cs.type = type;
         cs.totalAmount += t.amount;
         cs.count++;
