@@ -835,13 +835,16 @@ void DashboardPage::refreshCategoryBreakdown()
         const auto& cs = stats[i];   // 当前分类的统计信息
         double pct = cs.percentage;  // 该分类占总支出的百分比
 
-        // 创建一个水平布局，作为当前分类的行容器
-        QHBoxLayout *row = new QHBoxLayout;
-        row->setSpacing(8);  // 分类名、进度条、百分比之间的间距为 8 像素
+        // 创建行容器 QWidget（用 addWidget 而非 addLayout，确保能被清理代码正确删除）
+        QWidget *rowWidget = new QWidget;
+        rowWidget->setStyleSheet("background: transparent;");
+        QHBoxLayout *row = new QHBoxLayout(rowWidget);
+        row->setContentsMargins(0, 0, 0, 0);
+        row->setSpacing(8);
 
         /*
          * 子元素 1：分类名称标签
-         * 宽度固定为 50 像素，确保所有分类名对齐。
+         * 宽度固定为 60 像素，确保所有分类名对齐。
          * 字体大小为 12px，使用默认深色文字。
          * cs.category 是 std::string 类型，需要转换为 QString。
          */
@@ -850,28 +853,10 @@ void DashboardPage::refreshCategoryBreakdown()
         nameLabel->setStyleSheet("font-size: 12px; background: transparent;");
 
         /*
-         * 子元素 2：简易进度条（QProgressBar）
-         *
-         * QProgressBar 是 Qt 的标准进度条控件，通常用于显示操作进度，
-         * 但在这里被"复用"为数据可视化的柱状图。
-         *
-         * 设置说明：
-         *   setRange(0, 100)：进度条范围设为 0 到 100，对应百分比
-         *   setValue((int)pct)：将百分比值（可能带小数）转换为整数设置进度
-         *   setTextVisible(false)：隐藏进度条上的文字（百分比数字由独立的
-         *                          QLabel 显示，更美观可控）
-         *   setFixedHeight(14)：固定高度为 14 像素（较细的条状，节省空间）
-         *
-         * 进度条样式：
-         *   QProgressBar 整体：
-         *     - background: #F0F3F7（浅灰蓝色背景，表示"未填充"的部分）
-         *     - border: none（无边框）
-         *     - border-radius: 7px（圆角，半径 = 高度的一半，实现完全圆角）
-         *   QProgressBar::chunk（已填充的部分）：
-         *     - background: 当前分类的颜色（如#E74C3C红色）
-         *     - border-radius: 7px（与整体圆角一致）
+         * 子元素 2：自定义圆角柱状图
+         * QWidget灰色背景 + 内嵌QHBoxLayout彩色填充条
+         * 用stretch比例模拟百分比宽度：fill占pct%，空白占(100-pct)%
          */
-        // 自定义圆角柱状图：QWidget背景 + 内嵌QHBoxLayout彩色条
         QString barColor = colors[i % colors.size()];
         QWidget *bar = new QWidget;
         bar->setFixedHeight(14);
@@ -882,7 +867,6 @@ void DashboardPage::refreshCategoryBreakdown()
         fill->setFixedHeight(14);
         fill->setStyleSheet(
             QString("background: %1; border: none;").arg(barColor));
-        // 用stretch比例模拟百分比：fill占pct%，空白占(100-pct)%
         barLayout->addWidget(fill, (int)pct);
         barLayout->addStretch(100 - (int)pct);
 
@@ -890,25 +874,17 @@ void DashboardPage::refreshCategoryBreakdown()
          * 子元素 3：百分比标签
          * 宽度固定为 40 像素，显示格式化的百分比（保留一位小数）。
          * 字体大小为 11px，使用灰色（#7F8C8D）。
-         *
-         * 格式示例： "45.0%"
-         * .arg(pct, 0, 'f', 1)：将 pct 格式化为保留一位小数的字符串
          */
         QLabel *pctLabel = new QLabel(QString("%1%").arg(pct, 0, 'f', 1));
         pctLabel->setFixedWidth(40);
         pctLabel->setStyleSheet("font-size: 11px; color: #7F8C8D; background: transparent;");
 
-        /*
-         * 将三个子元素添加到行布局中
-         * 进度条使用 stretch factor = 1，表示它会占据分类名和百分比
-         * 之间的所有剩余空间。分类名（50px）和百分比（40px）的宽度
-         * 是固定的，进度条会自动伸缩适应可用宽度。
-         */
-        row->addWidget(nameLabel);   // 分类名称（固定 50px 宽）
-        row->addWidget(bar, 1);      // 进度条（stretch=1，占据剩余全部空间）
-        row->addWidget(pctLabel);    // 百分比数字（固定 40px 宽）
+        // 将三个子元素添加到行布局中
+        row->addWidget(nameLabel);
+        row->addWidget(bar, 1);       // 进度条 stretch=1，占据剩余空间
+        row->addWidget(pctLabel);
 
-        // 将整行添加到分类分布容器的布局中
-        layout->addLayout(row);
+        // 将行容器Widget添加到分类分布容器（addWidget可被清理代码正确删除）
+        layout->addWidget(rowWidget);
     }
 }

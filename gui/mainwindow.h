@@ -26,6 +26,7 @@
 
 class Ledger;
 class CategoryManager;
+class HomePage;
 class DashboardPage;
 class FlowPage;
 class StatisticsPage;
@@ -55,11 +56,12 @@ private:
     CategoryManager& m_catMan;
 
     QStackedWidget *m_stackedWidget;
-    DashboardPage   *m_dashboardPage;    // 索引 0: 概览
-    FlowPage *m_flowPage;               // 索引 1: 账目
-    StatisticsPage  *m_statisticsPage;   // 索引 2: 统计
-    CategoryPage    *m_categoryPage;     // 索引 3: 分类
-    OtherPage       *m_otherPage;        // 索引 4: 其他功能（数据导出等）
+    HomePage        *m_homePage;         // 索引 0: 启动首页
+    DashboardPage   *m_dashboardPage;    // 索引 1: 概览
+    FlowPage *m_flowPage;               // 索引 2: 账目
+    StatisticsPage  *m_statisticsPage;   // 索引 3: 统计
+    CategoryPage    *m_categoryPage;     // 索引 4: 分类
+    OtherPage       *m_otherPage;        // 索引 5: 其他功能（数据导出等）
 
     std::vector<QPushButton*> m_navButtons;
 

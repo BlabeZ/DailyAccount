@@ -230,7 +230,7 @@ void PieChartWidget::paintEvent(QPaintEvent *) {
  * 高度保证柱状区域不至于太矮而丧失可读性
  */
 BarChartWidget::BarChartWidget(QWidget *parent) : QWidget(parent) {
-    setMinimumSize(400, 250);
+    setMinimumSize(240, 150);
     setStyleSheet("background: transparent;");
 }
 
@@ -346,7 +346,7 @@ void BarChartWidget::paintEvent(QPaintEvent *) {
     // -------- 计算柱子宽度和间距 --------
     int n = (int)m_data.size();                        // 数据项总数（收入+支出交替）
     double barSpacing = chartW / (double)(n * 2);      // 每组（含2柱）的间距基准
-    double barWidth = barSpacing * 1.2;                // 单柱宽度，略宽于间距
+    double barWidth = barSpacing * 0.35;               // 细柱宽度，约为间距的1/3
 
     // ======== 步骤1: 绘制Y轴水平参考线（4等分线） ========
     // 线条颜色为极淡的灰蓝色，形成背景网格效果但不喧宾夺主
@@ -614,7 +614,7 @@ void StatisticsPage::setupUI()
     barLayout->addWidget(barTitle);
 
     m_monthlyBar = new BarChartWidget;
-    m_monthlyBar->setMinimumHeight(280);                  // 柱状图需要更多垂直空间
+    m_monthlyBar->setMinimumHeight(168);                  // 柱状图需要更多垂直空间
     barLayout->addWidget(m_monthlyBar, 1);
     m_mainLayout->addWidget(barFrame, 1);                 // 柱状图也获得伸缩因子1
 }
