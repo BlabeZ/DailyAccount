@@ -169,13 +169,78 @@ int main(int argc, char *argv[])
             background-color: #FFFFFF;
             border: 1px solid #D5DCE6;
             border-radius: 6px;
-            padding: 8px 12px;
+            padding: 8px 16px;
             font-size: 13px;
             color: #2C3E50;
         }
         QLineEdit:focus, QDateEdit:focus, QComboBox:focus {
             border-color: #3498DB;
             outline: none;
+        }
+        QComboBox:hover {
+            border-color: #3498DB;
+        }
+
+        /* QComboBox下拉箭头 */
+        QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: center right;
+            width: 28px;
+            border-left: 1px solid #D5DCE6;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            background: #F5F7FA;
+        }
+        QComboBox::drop-down:hover {
+            background: #EBF5FB;
+        }
+        QComboBox::down-arrow {
+            image: none;
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #7F8C8D;
+        }
+
+        /* QComboBox弹出列表 */
+        QComboBox QAbstractItemView {
+            background: white;
+            border: 1px solid #D5DCE6;
+            border-radius: 8px;
+            padding: 4px;
+            outline: none;
+            font-size: 13px;
+        }
+        QComboBox QAbstractItemView::item {
+            padding: 8px 16px;
+            border-radius: 4px;
+            min-height: 20px;
+        }
+        QComboBox QAbstractItemView::item:selected {
+            background: #EBF5FB;
+            color: #2C3E50;
+        }
+
+        /* 全局弹出菜单 */
+        QMenu {
+            background: white;
+            border: 1px solid #D5DCE6;
+            border-radius: 8px;
+            padding: 4px;
+            font-size: 13px;
+        }
+        QMenu::item {
+            padding: 8px 32px 8px 16px;
+            border-radius: 4px;
+        }
+        QMenu::item:selected {
+            background: #EBF5FB;
+            color: #2C3E50;
+        }
+        QMenu::separator {
+            height: 1px;
+            background: #E8ECF1;
+            margin: 4px 8px;
         }
 
         /* 日期选择器右侧日历按钮 */

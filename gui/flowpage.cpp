@@ -350,13 +350,8 @@ void FlowPage::showCategoryMenu()
         }
     }
 
-    // 构建弹出菜单
+    // 构建弹出菜单（样式由全局样式表统一控制）
     QMenu menu(this);
-    menu.setStyleSheet(
-        "QMenu { background: white; border: 1px solid #D5DCE6; border-radius: 8px; "
-        "padding: 4px; }"
-        "QMenu::item { padding: 8px 32px 8px 16px; border-radius: 4px; }"
-        "QMenu::item:selected { background: #EBF5FB; color: #2C3E50; }");
 
     // "全部分类"选项
     QAction *allAction = menu.addAction("全部分类");
@@ -383,7 +378,6 @@ void FlowPage::showCategoryMenu()
         } else {
             // 有子分类：创建二级子菜单
             QMenu *subMenu = new QMenu(&menu);
-            subMenu->setStyleSheet(menu.styleSheet());
 
             // 子菜单第一项："全部<分类>"
             QAction *allSubAction = subMenu->addAction(QString("全部%1").arg(mainCat));
