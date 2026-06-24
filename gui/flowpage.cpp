@@ -26,6 +26,7 @@
 #include <QHeaderView>    // 【表头控件】QTreeWidget 的列标题行
 #include <QMessageBox>    // 【消息对话框】弹出提示、警告、确认等窗口
 #include <QDate>          // 【日期类】提供日期计算和格式化功能
+#include <set>
 
 
 // ============================================================================
@@ -85,6 +86,10 @@ FlowPage::FlowPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
     // 筛选按钮 → 触发筛选
     connect(ui->btnFilter, &QPushButton::clicked, this, &FlowPage::onFilterChanged);
 
+    // 分类下拉筛选 → 切换分类时自动筛选
+    connect(ui->m_filterCategory, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &FlowPage::onFilterChanged);
+
     // 添加记录按钮 → 弹出添加对话框
     connect(ui->m_btnAdd, &QPushButton::clicked, this, &FlowPage::onAdd);
 }
@@ -131,17 +136,47 @@ void FlowPage::loadPage()
     QString startDate = ui->m_filterStart->date().toString("yyyy-MM-dd");
     QString endDate   = ui->m_filterEnd->date().toString("yyyy-MM-dd");
     QString typeFilter = ui->m_filterType->currentText();
+    QString catFilter  = ui->m_filterCategory->currentText();
 
     // 从账本获取指定日期范围内的所有流水
     std::vector<Record> filtered;
     auto rangeTxns = m_ledger.getRecordsByDateRange(
         startDate.toStdString(), endDate.toStdString());
 
+    // 更新分类筛选下拉框：收集日期范围内所有唯一分类
+    {
+        std::set<std::string> catSet;
+        for (const auto& t : rangeTxns)
+            catSet.insert(t.category);
+
+        // 阻止信号避免触发递归筛选
+        ui->m_filterCategory->blockSignals(true);
+        QString prevCat = ui->m_filterCategory->currentText();
+        ui->m_filterCategory->clear();
+        ui->m_filterCategory->addItem("全部分类");
+        for (const auto& cat : catSet)
+            ui->m_filterCategory->addItem(QString::fromStdString(cat));
+        // 恢复之前选中的分类（如果还存在）
+        int idx = ui->m_filterCategory->findText(prevCat);
+        if (idx >= 0) ui->m_filterCategory->setCurrentIndex(idx);
+        ui->m_filterCategory->blockSignals(false);
+    }
+
     // 按类型过滤
     for (const auto& t : rangeTxns) {
         if (typeFilter == "支出" && t.type != RecordType::EXPENSE) continue;
         if (typeFilter == "收入" && t.type != RecordType::INCOME) continue;
         filtered.push_back(t);
+    }
+
+    // 按分类过滤
+    if (catFilter != "全部分类" && !catFilter.isEmpty()) {
+        std::vector<Record> catFiltered;
+        for (const auto& t : filtered) {
+            if (QString::fromStdString(t.category) == catFilter)
+                catFiltered.push_back(t);
+        }
+        filtered = std::move(catFiltered);
     }
 
     // 按日期分组

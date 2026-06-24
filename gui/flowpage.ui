@@ -74,6 +74,13 @@
        </widget>
       </item>
 
+      <!-- 分类筛选 -->
+      <item>
+       <widget class="QComboBox" name="m_filterCategory">
+        <item><property name="text"><string>全部分类</string></property></item>
+       </widget>
+      </item>
+
       <!-- 筛选按钮 -->
       <item>
        <widget class="QPushButton" name="btnFilter">
