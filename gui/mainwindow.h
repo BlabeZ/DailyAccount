@@ -5,8 +5,8 @@
  * 功能描述: 声明 MainWindow 类 —— GUI 记账工具的主窗口。
  *
  * 主窗口是用户界面的"外壳"，负责:
- *   1. 提供左侧导航栏（5个导航按钮: 概览/账目/统计/分类/其他）
- *   2. 管理右侧内容区域（使用 QStackedWidget 切换5个功能页面）
+ *   1. 提供左侧导航栏（一级按钮"日常记账" → 展开二级按钮: 概览/账目/统计/分类/其他）
+ *   2. 管理右侧内容区域（使用 QStackedWidget 切换6个功能页面）
  *   3. 显示底部状态栏（实时显示总收入/总支出/结余数据）
  *
  * 编码格式: UTF-8
@@ -45,6 +45,7 @@ public:
 private slots:
     void switchToPage(int index);
     void updateStatusBar();
+    void toggleNavGroup();
 
 private:
     void setupUI();
@@ -64,6 +65,10 @@ private:
     OtherPage       *m_otherPage;        // 索引 5: 其他功能（数据导出等）
 
     std::vector<QPushButton*> m_navButtons;
+
+    // 侧边栏分组
+    QPushButton *m_navGroupBtn;      // "日常记账"展开/折叠按钮
+    QWidget     *m_navGroupContainer; // 二级导航按钮容器
 
     QLabel *m_statusIncome;
     QLabel *m_statusExpense;

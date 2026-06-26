@@ -137,7 +137,7 @@ void MainWindow::setupUI()
      * setMinimumSize 确保窗口不会缩小到布局错乱
      * resize 设置窗口首次显示时的默认大小
      */
-    setWindowTitle(" 日常记账工具");
+    setWindowTitle(" 小工具");
     setMinimumSize(1100, 700);  // 宽度不低于 1100 像素，高度不低于 700 像素
     resize(1200, 750);           // 默认打开时的大小：宽 1200，高 750
 
@@ -185,7 +185,7 @@ void MainWindow::setupUI()
 
     // ① 应用标题
     // 使用 QLabel 显示标题，设置较大的加粗字体和深色文字
-    QLabel *titleLabel = new QLabel(" 日常记账");
+    QLabel *titleLabel = new QLabel(" 小工具");
     titleLabel->setStyleSheet(
         "font-size: 18px; font-weight: bold; color: #2C3E50; "
         "padding: 8px 12px 20px 12px; background: transparent;");
@@ -314,21 +314,33 @@ void MainWindow::setupUI()
  */
 void MainWindow::setupSidebar(QVBoxLayout *sideLayout)
 {
-    /*
-     * 定义一个局部结构体 NavItem，用于描述每个导航按钮的属性
-     * text：按钮上显示的文本（含图标）
-     * icon：图标字符（保留字段，当前未单独使用）
-     */
+    // ===================================================================
+    // 一级按钮：「日常记账」展开/折叠
+    // ===================================================================
+    m_navGroupBtn = new QPushButton("▼ 日常记账");
+    m_navGroupBtn->setCursor(Qt::PointingHandCursor);
+    m_navGroupBtn->setStyleSheet(
+        "QPushButton { background: transparent; color: #2C3E50; border: none; "
+        "border-radius: 8px; padding: 12px 16px; text-align: left; "
+        "font-size: 14px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #E8EDF2; }");
+    connect(m_navGroupBtn, &QPushButton::clicked, this, &MainWindow::toggleNavGroup);
+    sideLayout->addWidget(m_navGroupBtn);
+
+    // ===================================================================
+    // 二级导航容器（初始展开）
+    // ===================================================================
+    m_navGroupContainer = new QWidget;
+    m_navGroupContainer->setStyleSheet("background: transparent;");
+    QVBoxLayout *groupLayout = new QVBoxLayout(m_navGroupContainer);
+    groupLayout->setContentsMargins(12, 0, 0, 0);  // 左侧缩进12px表示层级
+    groupLayout->setSpacing(2);
+
     struct NavItem {
         QString text;
         QString icon;
     };
 
-    /*
-     * 定义四个导航项
-     * 每个导航项的文字中已经包含了图标 emoji 和中文名称
-     * 这些文本将直接作为按钮的显示标签
-     */
     std::vector<NavItem> navs = {
         {"  概览", ""},   // → 切换到索引 1（DashboardPage）
         {"  账目", ""},   // → 切换到索引 2（FlowPage）
@@ -337,47 +349,37 @@ void MainWindow::setupSidebar(QVBoxLayout *sideLayout)
         {"  其他", ""}    // → 切换到索引 5（OtherPage）
     };
 
-    /*
-     * 循环创建导航按钮
-     * 每次迭代创建一个按钮，设置样式和交互行为
-     */
     for (size_t i = 0; i < navs.size(); i++) {
-
-        // 创建按钮，文本从 navs[i].text 中获取
         QPushButton *btn = new QPushButton(navs[i].text);
-
-        // 设置 CSS 样式类名为 "nav"，与外部样式表关联
         btn->setProperty("class", "nav");
-
-        // 设置鼠标指针样式：当鼠标悬停在按钮上时显示手型光标
-        // 提示用户该区域是可以点击的
         btn->setCursor(Qt::PointingHandCursor);
-
-        // 将按钮添加到侧边栏的垂直布局中
-        sideLayout->addWidget(btn);
-
-        // 将按钮指针保存到成员变量 m_navButtons 中
-        // 在 setNavButtonActive() 方法中会遍历这个列表来更新按钮高亮状态
+        groupLayout->addWidget(btn);  // 添加到容器布局而非侧边栏
         m_navButtons.push_back(btn);
 
-        /*
-         * 核心：连接信号-槽，实现页面切换
-         *
-         * 使用 lambda 表达式连接按钮的 clicked 信号：
-         *   - 将循环变量 i 转换为 int 类型的 pageIndex
-         *   - 按值捕获 pageIndex（避免引用捕获的常见陷阱）
-         *   - 在 lambda 内部调用 switchToPage(pageIndex)
-         *
-         * 为什么使用 lambda 而不是直接调用 switchToPage(i)？
-         *   因为 connect 的第三个参数需要是一个函数指针或可调用对象。
-         *   使用 lambda 可以捕获额外的参数（pageIndex），灵活地将
-         *   按钮点击事件与特定的页面索引绑定。
-         */
-        int pageIndex = static_cast<int>(i) + 1;  // +1 因为索引 0 是启动首页
+        int pageIndex = static_cast<int>(i) + 1;  // +1 因为索引 0 是入场首页
         connect(btn, &QPushButton::clicked, this, [this, pageIndex]() {
             switchToPage(pageIndex);
         });
     }
+
+    sideLayout->addWidget(m_navGroupContainer);
+}
+
+/*
+ * ===========================================================================
+ * 方法：toggleNavGroup
+ * ---------------------------------------------------------------------------
+ * 功能描述：
+ *     切换"日常记账"导航分组的展开/折叠状态。
+ *     折叠时隐藏二级导航按钮，展开时显示。
+ * ---------------------------------------------------------------------------
+ */
+void MainWindow::toggleNavGroup()
+{
+    bool visible = m_navGroupContainer->isVisible();
+    m_navGroupContainer->setVisible(!visible);
+    // 更新箭头指示符
+    m_navGroupBtn->setText(visible ? "▶ 日常记账" : "▼ 日常记账");
 }
 
 /*

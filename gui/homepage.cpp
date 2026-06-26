@@ -1,10 +1,10 @@
 /*
  * ============================================================================
  * 文件名: homepage.cpp
- * 模块:   启动首页（GUI实现文件）
- * 功能:   实现 HomePage —— 居中显示"记账本"三个大字，字间距30px+。
+ * 模块:   入场首页（GUI实现文件）
+ * 功能:   实现 HomePage —— 居中显示"小工具"三个大字，字间距30px+。
  *         文字在页面显示时带有淡入动画效果。
- *         本页是静态页面，无数据加载逻辑，不依赖 Ledger 或 CategoryManager。
+ *         本页是入场首页，无数据加载逻辑，不依赖 Ledger 或 CategoryManager。
  * 编码:   UTF-8
  * ============================================================================
  */
@@ -21,15 +21,15 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent) {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setAlignment(Qt::AlignCenter);
 
-    // ======== 标题行：三个独立字符 "记" "账" "本"，水平居中 ========
+    // ======== 标题行：三个独立字符 "小" "工" "具"，水平居中 ========
     QHBoxLayout *titleRow = new QHBoxLayout;
     titleRow->setAlignment(Qt::AlignCenter);
     titleRow->setSpacing(36);  // 字间距 36px
 
     const QString chars[] = {
-        QStringLiteral("记"),
-        QStringLiteral("账"),
-        QStringLiteral("本")
+        QStringLiteral("小"),
+        QStringLiteral("工"),
+        QStringLiteral("具")
     };
 
     const QString charStyle =
@@ -55,8 +55,8 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent) {
 
     mainLayout->addLayout(titleRow);
 
-    // ======== 副标题：简短描述 ========
-    m_subtitleLabel = new QLabel(QStringLiteral("记录每一笔，掌控每一天"));
+    // ======== 副标题：欢迎语 ========
+    m_subtitleLabel = new QLabel(QStringLiteral("欢迎使用"));
     m_subtitleLabel->setStyleSheet(
         "font-family: 'Microsoft YaHei';"
         "font-size: 16px;"
@@ -105,9 +105,9 @@ void HomePage::fadeInLabel(QLabel * /*label*/, QGraphicsOpacityEffect *effect,
  * showEvent — 页面首次显示时触发逐字淡入动画
  *
  * 动画节奏:
- *   "记"  —— 立即开始, 700ms
- *   "账"  —— 延迟 120ms, 700ms
- *   "本"  —— 延迟 240ms, 700ms
+ *   "小"  —— 立即开始, 700ms
+ *   "工"  —— 延迟 120ms, 700ms
+ *   "具"  —— 延迟 240ms, 700ms
  *   副标题 —— 延迟 500ms, 600ms
  *
  *   三个字依次出现形成"书写"般的渐入效果，
@@ -119,9 +119,9 @@ void HomePage::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
 
     // 三个字符依次淡入
-    fadeInLabel(m_charLabels[0], m_charEffects[0],   0, 700);   // "记"
-    fadeInLabel(m_charLabels[1], m_charEffects[1], 120, 700);   // "账"
-    fadeInLabel(m_charLabels[2], m_charEffects[2], 240, 700);   // "本"
+    fadeInLabel(m_charLabels[0], m_charEffects[0],   0, 700);   // "小"
+    fadeInLabel(m_charLabels[1], m_charEffects[1], 120, 700);   // "工"
+    fadeInLabel(m_charLabels[2], m_charEffects[2], 240, 700);   // "具"
 
     // 副标题延迟后淡入
     fadeInLabel(m_subtitleLabel, m_subtitleEffect, 500, 600);
