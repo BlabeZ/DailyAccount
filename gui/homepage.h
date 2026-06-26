@@ -1,10 +1,11 @@
 /*
  * ============================================================================
  * 文件名: homepage.h
- * 模块:   启动首页（GUI头文件）
- * 功能:   声明 HomePage 类 —— 程序启动时显示的欢迎首页。
- *         页面正中显示"记账本"三个大字，无数据依赖。
- *         用户点击任意侧边栏导航后离开此页，且不会再返回。
+ * 模块:   入场首页（GUI头文件）
+ * 功能:   声明 HomePage 类 —— 程序启动时显示的入场首页。
+ *         页面正中显示"小工具"三个大字，下方副标题"欢迎使用"。
+ *         所有文字在页面显示时带有淡入动画效果。
+ *         界面由 homepage.ui 定义，可通过 Qt Designer 可视化编辑。
  * 编码:   UTF-8
  * ============================================================================
  */
@@ -15,6 +16,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
+#include "ui_homepage.h"
 
 class QGraphicsOpacityEffect;
 
@@ -31,10 +33,10 @@ private:
     void fadeInLabel(QLabel *label, QGraphicsOpacityEffect *effect,
                      int delayMs, int durationMs);
 
-    QLabel *m_charLabels[3];     // "记" "账" "本"
-    QGraphicsOpacityEffect *m_charEffects[3];
-    QLabel *m_subtitleLabel;
-    QGraphicsOpacityEffect *m_subtitleEffect;
+    Ui::HomePage *ui;
+
+    QGraphicsOpacityEffect *m_charEffects[3];  // 三个字的透明度效果
+    QGraphicsOpacityEffect *m_subtitleEffect;  // 副标题透明度效果
 };
 
 #endif // HOMEPAGE_H

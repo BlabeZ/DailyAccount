@@ -2,110 +2,68 @@
  * ============================================================================
  * 文件名:   flowdialog.cpp
  * 所属模块: GUI - 流水添加/编辑对话框（实现文件）
- * 功    能: FlowDialog 类的完整实现。包含：
- *           1. 双模式构造函数（添加模式 / 编辑模式）
- *           2. 界面搭建（setupUI）—— QFormLayout 表单布局
- *           3. 分类联动（onTypeChanged / populateCategories）
- *           4. 表单数据读取与填充（getRecord / setRecord）
- *           5. 提交前验证（onAccept）
+ * 功    能: FlowDialog 类的完整实现。界面由 flowdialog.ui 定义。
  * 编    码: UTF-8
- * 说    明: 本对话框是用户与系统交互最频繁的界面之一。每次添加或修改
- *           流水记录都会使用它。因此代码中特别注重了数据验证和用户体验。
  * ============================================================================
  */
 
-// ---------- 本模块头文件 ----------
 #include "flowdialog.h"
+#include "category.h"
+#include <QButtonGroup>
+#include <QMessageBox>
+#include <QDate>
+#include <QCalendarWidget>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QPushButton>
 
-// ---------- 项目内部模块 ----------
-#include "category.h"       // CategoryManager 类、RecordType 枚举等
-
-// ---------- Qt 框架头文件 ----------
-#include <QFormLayout>      // 【表单布局】专门为"标签-输入框"成对排列设计的布局。
-#include <QVBoxLayout>      // 【垂直布局】从上到下排列控件
-#include <QHBoxLayout>      // 【水平布局】从左到右排列控件
-#include <QPushButton>      // 【按钮控件】取消、确定按钮
-#include <QButtonGroup>     // 【按钮组】将多个单选按钮归为一组，确保互斥选择
-#include <QMessageBox>      // 【消息框】弹出警告和提示信息
-#include <QDate>            // 【日期类】获取当前日期
-#include <QCalendarWidget>  // 【日历控件】弹出日历选择日期
-#include <QLabel>           // 【标签控件】显示标题文字
-
-
-// ============================================================================
-// 构  造  函  数  ——  添  加  模  式
-// ============================================================================
+// ==================== 添加模式构造函数 ====================
 FlowDialog::FlowDialog(CategoryManager& catMan, QWidget *parent)
     : QDialog(parent)
     , m_catMan(catMan)
     , m_editId(-1)
+    , ui(new Ui::FlowDialog)
 {
     setWindowTitle(" 添加记录");
     setupUI();
     setRecord(Record{});
-    m_categoryCombo->setCurrentIndex(-1);
-    m_subCategoryCombo->setVisible(false);
-    m_subCategoryLabel->setVisible(false);
-    m_amountSpin->setValue(0.00);
+    ui->categoryCombo->setCurrentIndex(-1);
+    ui->subCategoryCombo->setVisible(false);
+    ui->subCategoryLabel->setVisible(false);
+    ui->amountSpin->setValue(0.00);
 }
 
-
-// ============================================================================
-// 构  造  函  数  ——  编  辑  模  式
-// ============================================================================
-FlowDialog::FlowDialog(CategoryManager& catMan, const Record& existing,
-                                     QWidget *parent)
+// ==================== 编辑模式构造函数 ====================
+FlowDialog::FlowDialog(CategoryManager& catMan, const Record& existing, QWidget *parent)
     : QDialog(parent)
     , m_catMan(catMan)
     , m_editId(existing.id)
+    , ui(new Ui::FlowDialog)
 {
     setWindowTitle(" 修改记录");
     setupUI();
     setRecord(existing);
 }
 
-
-// ============================================================================
-// 界  面  搭  建  函  数
-// ============================================================================
+// ==================== 界面搭建 ====================
 void FlowDialog::setupUI()
 {
-    setMinimumWidth(420);
+    ui->setupUi(this);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setSpacing(16);
-    mainLayout->setContentsMargins(24, 24, 24, 24);
+    // 标题文字
+    ui->titleLabel->setText(windowTitle());
 
-    // 标题
-    QLabel *title = new QLabel(windowTitle());
-    title->setStyleSheet("font-size: 18px; font-weight: bold; color: #2C3E50; "
-                         "background: transparent;");
-    mainLayout->addWidget(title);
+    // 单选按钮组（互斥）
+    QButtonGroup *typeGroup = new QButtonGroup(this);
+    typeGroup->addButton(ui->radioExpense);
+    typeGroup->addButton(ui->radioIncome);
 
-    // 表单区域
-    QFormLayout *form = new QFormLayout;
-    form->setSpacing(12);
-    form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    connect(ui->radioExpense, &QRadioButton::toggled, this, &FlowDialog::onTypeChanged);
+    connect(ui->radioIncome,  &QRadioButton::toggled, this, &FlowDialog::onTypeChanged);
 
-    // 日期字段：增减箭头 + 日历按钮
-    m_dateEdit = new QDateEdit(QDate::currentDate());
-    m_dateEdit->setCalendarPopup(false);
-    m_dateEdit->setDisplayFormat("yyyy-MM-dd");
-    m_dateEdit->setMinimumWidth(200);
-    QHBoxLayout *dateRow = new QHBoxLayout;
-    dateRow->setSpacing(4);
-    dateRow->addWidget(m_dateEdit);
-    QPushButton *calBtn = new QPushButton("📅");
-    calBtn->setFixedSize(28, 28);
-    calBtn->setCursor(Qt::PointingHandCursor);
-    calBtn->setToolTip("打开日历选择");
-    calBtn->setStyleSheet(
-        "QPushButton { background: #EBF5FB; border: 1px solid #D5DCE6; "
-        "border-radius: 4px; font-size: 14px; }"
-        "QPushButton:hover { background: #3498DB; }");
-    connect(calBtn, &QPushButton::clicked, this, [this]() {
-        QDate d = m_dateEdit->date();
-        // 使用QCalendarWidget或简单的日期编辑
+    // 日历按钮
+    connect(ui->calendarBtn, &QPushButton::clicked, this, [this]() {
+        QDate d = ui->dateEdit->date();
         QDialog calDlg(this);
         calDlg.setWindowTitle("选择日期");
         QVBoxLayout *calLayout = new QVBoxLayout(&calDlg);
@@ -122,248 +80,143 @@ void FlowDialog::setupUI()
         connect(ok, &QPushButton::clicked, &calDlg, &QDialog::accept);
         connect(cal, &QCalendarWidget::clicked, &calDlg, &QDialog::accept);
         if (calDlg.exec() == QDialog::Accepted)
-            m_dateEdit->setDate(cal->selectedDate());
+            ui->dateEdit->setDate(cal->selectedDate());
     });
-    dateRow->addWidget(calBtn);
-    form->addRow("日期:", dateRow);
 
-    // 类型字段（单选按钮组）
-    m_radioExpense = new QRadioButton("支出");
-    m_radioIncome  = new QRadioButton("收入");
-    m_radioExpense->setChecked(true);
-
-    QButtonGroup *typeGroup = new QButtonGroup(this);
-    typeGroup->addButton(m_radioExpense);
-    typeGroup->addButton(m_radioIncome);
-
-    QHBoxLayout *typeLayout = new QHBoxLayout;
-    typeLayout->addWidget(m_radioExpense);
-    typeLayout->addWidget(m_radioIncome);
-    typeLayout->addStretch();
-    form->addRow("类型:", typeLayout);
-
-    connect(m_radioExpense, &QRadioButton::toggled, this, &FlowDialog::onTypeChanged);
-    connect(m_radioIncome,  &QRadioButton::toggled, this, &FlowDialog::onTypeChanged);
-
-    // 金额字段（0.00时显示为空白）
-    m_amountSpin = new QDoubleSpinBox;
-    m_amountSpin->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    m_amountSpin->setRange(0.00, 99999999.99);
-    m_amountSpin->setDecimals(2);
-    m_amountSpin->setPrefix("");
-    m_amountSpin->setSpecialValueText(" ");
-    m_amountSpin->setValue(0.00);
-    m_amountSpin->setMinimumWidth(200);
-    form->addRow("金额(￥):", m_amountSpin);
-
-    // 分类字段
-    m_categoryCombo = new QComboBox;
-    m_categoryCombo->setMinimumWidth(200);
-    form->addRow("分类:", m_categoryCombo);
-    // 用户选择分类时同步更新子分类
-    connect(m_categoryCombo, QOverload<int>::of(&QComboBox::activated),
+    // 分类选择联动子分类
+    connect(ui->categoryCombo, QOverload<int>::of(&QComboBox::activated),
             this, [this](int) { updateSubCategory(); });
 
-    // 二级子分类（仅"饮食"等有子分类的类别显示）
-    m_subCategoryCombo = new QComboBox;
-    m_subCategoryCombo->setMinimumWidth(200);
-    m_subCategoryCombo->setVisible(false);
-    m_subCategoryLabel = new QLabel("饮食类型:");
-    form->addRow(m_subCategoryLabel, m_subCategoryCombo);
-    m_subCategoryLabel->setVisible(false);
+    // 金额字段设置
+    ui->amountSpin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    ui->amountSpin->setRange(0.00, 99999999.99);
+    ui->amountSpin->setDecimals(2);
+    ui->amountSpin->setSpecialValueText(" ");
 
-    // 备注字段
-    m_noteEdit = new QLineEdit;
-    m_noteEdit->setPlaceholderText("可选：添加备注信息...");
-    form->addRow("备注:", m_noteEdit);
-
-    mainLayout->addLayout(form);
-    mainLayout->addSpacing(8);
-
-    // 底部按钮栏
-    QHBoxLayout *btnLayout = new QHBoxLayout;
-
-    // 删除按钮（仅编辑模式显示，左下角）
-    QPushButton *delBtn = new QPushButton("删除记录");
-    delBtn->setStyleSheet(
-        "QPushButton { background: #E74C3C; color: white; border-radius: 6px; "
-        "padding: 10px 20px; } QPushButton:hover { background: #CB4335; }");
-    btnLayout->addWidget(delBtn);
-    // 添加模式下隐藏删除按钮
-    if (m_editId < 0) delBtn->setVisible(false);
-    connect(delBtn, &QPushButton::clicked, this, [this]() {
+    // 删除按钮（添加模式下隐藏）
+    if (m_editId < 0) ui->btnDelete->setVisible(false);
+    connect(ui->btnDelete, &QPushButton::clicked, this, [this]() {
         m_deleteRequested = true;
         reject();
     });
 
-    btnLayout->addStretch();
+    // 取消/确定按钮
+    connect(ui->btnCancel, &QPushButton::clicked, this, &QDialog::reject);
+    connect(ui->btnOk, &QPushButton::clicked, this, &FlowDialog::onAccept);
 
-    QPushButton *cancelBtn = new QPushButton("取消");
-    cancelBtn->setStyleSheet(
-        "QPushButton { background: #ECF0F1; color: #2C3E50; border-radius: 6px; "
-        "padding: 10px 24px; } QPushButton:hover { background: #D5DCE6; }");
-    btnLayout->addWidget(cancelBtn);
-
-    QPushButton *okBtn = new QPushButton("确定");
-    okBtn->setStyleSheet(
-        "QPushButton { background: #3498DB; color: white; border-radius: 6px; "
-        "padding: 10px 32px; } QPushButton:hover { background: #2980B9; }");
-    btnLayout->addWidget(okBtn);
-
-    mainLayout->addLayout(btnLayout);
-
-    // 信号连接
-    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-    connect(okBtn, &QPushButton::clicked, this, &FlowDialog::onAccept);
-
-    // 初始化分类列表，默认不选中任何分类
+    // 初始化分类列表
     populateCategories(RecordType::EXPENSE);
-    m_categoryCombo->setCurrentIndex(-1);
+    ui->categoryCombo->setCurrentIndex(-1);
 }
 
-
-// ============================================================================
-// 分  类  联  动
-// ============================================================================
+// ==================== 分类联动 ====================
 void FlowDialog::onTypeChanged()
 {
-    RecordType type = m_radioIncome->isChecked()
-        ? RecordType::INCOME
-        : RecordType::EXPENSE;
+    RecordType type = ui->radioIncome->isChecked()
+        ? RecordType::INCOME : RecordType::EXPENSE;
     populateCategories(type);
 }
 
-// 根据当前主分类同步更新子分类选项和可见性
 void FlowDialog::updateSubCategory()
 {
-    QString cat = m_categoryCombo->currentText();
-    m_subCategoryCombo->clear();
+    QString cat = ui->categoryCombo->currentText();
+    ui->subCategoryCombo->clear();
     QStringList items;
     if (cat == "饮食")
         items = {"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"};
     else if (cat == "交通")
         items = {"公交", "地铁", "打车", "共享单车", "火车", "飞机", "其他"};
     bool hasSub = !items.isEmpty();
-    m_subCategoryCombo->setVisible(hasSub);
-    m_subCategoryLabel->setVisible(hasSub);
+    ui->subCategoryCombo->setVisible(hasSub);
+    ui->subCategoryLabel->setVisible(hasSub);
     if (hasSub) {
-        if (cat == "交通") m_subCategoryLabel->setText("交通类型:");
-        else m_subCategoryLabel->setText("饮食类型:");
-        m_subCategoryCombo->addItems(items);
-        m_subCategoryCombo->setCurrentIndex(-1);
+        if (cat == "交通") ui->subCategoryLabel->setText("交通类型:");
+        else ui->subCategoryLabel->setText("饮食类型:");
+        ui->subCategoryCombo->addItems(items);
+        ui->subCategoryCombo->setCurrentIndex(-1);
     }
 }
 
-// 保留旧名称兼容
-void FlowDialog::onCategoryChanged(int) { updateSubCategory(); }
-
-
-// ============================================================================
-// 填  充  分  类  列  表
-// ============================================================================
 void FlowDialog::populateCategories(RecordType type)
 {
-    m_categoryCombo->clear();
+    ui->categoryCombo->clear();
     auto cats = m_catMan.getCategories(type);
     for (const auto& c : cats) {
-        m_categoryCombo->addItem(QString::fromStdString(c));
+        ui->categoryCombo->addItem(QString::fromStdString(c));
     }
 }
 
-
-// ============================================================================
-// 表  单  数  据  填  充
-// ============================================================================
+// ==================== 表单数据填充/读取 ====================
 void FlowDialog::setRecord(const Record& t)
 {
     if (!t.date.empty()) {
-        m_dateEdit->setDate(QDate::fromString(
+        ui->dateEdit->setDate(QDate::fromString(
             QString::fromStdString(t.date), "yyyy-MM-dd"));
     }
-
-    if (t.type == RecordType::INCOME) {
-        m_radioIncome->setChecked(true);
-    } else {
-        m_radioExpense->setChecked(true);
-    }
+    if (t.type == RecordType::INCOME)
+        ui->radioIncome->setChecked(true);
+    else
+        ui->radioExpense->setChecked(true);
 
     populateCategories(t.type);
+    ui->amountSpin->setValue(t.amount > 0 ? t.amount : 0.01);
 
-    m_amountSpin->setValue(t.amount > 0 ? t.amount : 0.01);
-
-    // 解析组合分类"饮食(午饭)" → 主分类+子分类
     QString catStr = QString::fromStdString(t.category);
     int parenPos = catStr.indexOf('(');
     if (parenPos > 0) {
         QString mainCat = catStr.left(parenPos);
         QString subCat = catStr.mid(parenPos + 1).chopped(1);
-        int idx = m_categoryCombo->findText(mainCat);
-        if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
-        updateSubCategory();  // 确保子分类已填充
-        int subIdx = m_subCategoryCombo->findText(subCat);
-        if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
+        int idx = ui->categoryCombo->findText(mainCat);
+        if (idx >= 0) ui->categoryCombo->setCurrentIndex(idx);
+        updateSubCategory();
+        int subIdx = ui->subCategoryCombo->findText(subCat);
+        if (subIdx >= 0) ui->subCategoryCombo->setCurrentIndex(subIdx);
     } else if (!catStr.isEmpty()) {
-        int idx2 = m_categoryCombo->findText(catStr);
-        if (idx2 >= 0) m_categoryCombo->setCurrentIndex(idx2);
+        int idx2 = ui->categoryCombo->findText(catStr);
+        if (idx2 >= 0) ui->categoryCombo->setCurrentIndex(idx2);
         updateSubCategory();
     }
 
-    m_noteEdit->setText(QString::fromStdString(t.note));
+    ui->noteEdit->setText(QString::fromStdString(t.note));
 }
 
-
-// ============================================================================
-// 读  取  表  单  数  据
-// ============================================================================
 Record FlowDialog::getRecord() const
 {
     Record t;
     t.id = m_editId;
-    t.date = m_dateEdit->date().toString("yyyy-MM-dd").toStdString();
-    t.type = m_radioIncome->isChecked() ? RecordType::INCOME : RecordType::EXPENSE;
-    t.amount = m_amountSpin->value();
-    // 组合分类：如有子分类且用户已选择则格式为"主分类(子分类)"
-    QString cat = m_categoryCombo->currentText();
-    if ((cat == "饮食" || cat == "交通") && m_subCategoryCombo->currentIndex() >= 0) {
-        cat += "(" + m_subCategoryCombo->currentText() + ")";
+    t.date = ui->dateEdit->date().toString("yyyy-MM-dd").toStdString();
+    t.type = ui->radioIncome->isChecked() ? RecordType::INCOME : RecordType::EXPENSE;
+    t.amount = ui->amountSpin->value();
+    QString cat = ui->categoryCombo->currentText();
+    if ((cat == "饮食" || cat == "交通") && ui->subCategoryCombo->currentIndex() >= 0) {
+        cat += "(" + ui->subCategoryCombo->currentText() + ")";
     }
     t.category = cat.toStdString();
-    t.note = m_noteEdit->text().toStdString();
+    t.note = ui->noteEdit->text().toStdString();
     return t;
 }
 
-
-// ============================================================================
-// 提  交  验  证
-// ============================================================================
+// ==================== 提交验证 ====================
 void FlowDialog::onAccept()
 {
-    if (m_amountSpin->value() <= 0) {
-        QMessageBox::warning(this, "输入错误",
-                             "请输入有效的金额（大于0）。");
-        m_amountSpin->setFocus();
+    if (ui->amountSpin->value() <= 0) {
+        QMessageBox::warning(this, "输入错误", "请输入有效的金额（大于0）。");
+        ui->amountSpin->setFocus();
         return;
     }
-
-    if (m_categoryCombo->currentText().isEmpty()) {
-        QMessageBox::warning(this, "输入错误",
-                             "请选择一个分类。");
+    if (ui->categoryCombo->currentText().isEmpty()) {
+        QMessageBox::warning(this, "输入错误", "请选择一个分类。");
         return;
     }
-
-    // 防错机制：日期大于今日时弹出确认提示
-    if (m_dateEdit->date() > QDate::currentDate()) {
-        QString pickedDate = m_dateEdit->date().toString("yyyy-MM-dd");
+    if (ui->dateEdit->date() > QDate::currentDate()) {
+        QString pickedDate = ui->dateEdit->date().toString("yyyy-MM-dd");
         QMessageBox msgBox(this);
         msgBox.setWindowTitle("日期确认");
         msgBox.setText(QString("录入日期为 %1，晚于今天。\n是否继续记录？").arg(pickedDate));
         msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
         msgBox.setDefaultButton(QMessageBox::Cancel);
         msgBox.setIcon(QMessageBox::Question);
-        if (msgBox.exec() != QMessageBox::Ok) {
-            return;  // 用户选择取消，放弃本次操作
-        }
+        if (msgBox.exec() != QMessageBox::Ok) return;
     }
-
     accept();
 }

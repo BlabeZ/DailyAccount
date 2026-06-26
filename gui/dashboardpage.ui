@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DashboardPage</class>
+ <widget class="QWidget" name="DashboardPage">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>900</width><height>600</height></rect>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="leftMargin"><number>24</number></property>
+   <property name="topMargin"><number>24</number></property>
+   <property name="rightMargin"><number>24</number></property>
+   <property name="bottomMargin"><number>24</number></property>
+   <property name="spacing"><number>20</number></property>
+   <!-- 标题 -->
+   <item>
+    <widget class="QLabel" name="pageTitle">
+     <property name="text"><string>概览</string></property>
+     <property name="styleSheet"><string notr="true">font-size: 22px; font-weight: bold; color: #2C3E50; background: transparent; padding: 0;</string></property>
+    </widget>
+   </item>
+   <!-- 汇总卡片行 -->
+   <item>
+    <layout class="QHBoxLayout" name="cardsRow">
+     <property name="spacing"><number>16</number></property>
+     <item>
+      <widget class="QLabel" name="cardIncome">
+       <property name="textFormat"><enum>Qt::RichText</enum></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="cardExpense">
+       <property name="textFormat"><enum>Qt::RichText</enum></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="cardBalance">
+       <property name="textFormat"><enum>Qt::RichText</enum></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <!-- 底部双栏 -->
+   <item>
+    <layout class="QHBoxLayout" name="bottomRow">
+     <property name="spacing"><number>16</number></property>
+     <!-- 左栏：最近流水 -->
+     <item>
+      <widget class="QFrame" name="recentFrame">
+       <property name="class" stdset="0"><string>card</string></property>
+       <layout class="QVBoxLayout" name="recentLayout">
+        <item>
+         <widget class="QLabel" name="recentTitle">
+          <property name="text"><string>📋 最近流水记录</string></property>
+          <property name="styleSheet"><string notr="true">font-size: 15px; font-weight: bold; background: transparent; padding-bottom: 8px;</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="recentTable">
+          <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
+          <property name="selectionBehavior"><enum>QAbstractItemView::SelectRows</enum></property>
+          <property name="minimumHeight"><number>280</number></property>
+          <column>
+           <property name="text"><string>日期</string></property>
+          </column>
+          <column>
+           <property name="text"><string>类型</string></property>
+          </column>
+          <column>
+           <property name="text"><string>金额</string></property>
+          </column>
+          <column>
+           <property name="text"><string>分类</string></property>
+          </column>
+          <column>
+           <property name="text"><string>备注</string></property>
+          </column>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <!-- 右栏：支出分布 -->
+     <item>
+      <widget class="QFrame" name="catFrame">
+       <property name="class" stdset="0"><string>card</string></property>
+       <layout class="QVBoxLayout" name="catLayout">
+        <item>
+         <widget class="QLabel" name="catTitle">
+          <property name="text"><string>📊 本月支出分布</string></property>
+          <property name="styleSheet"><string notr="true">font-size: 15px; font-weight: bold; background: transparent; padding-bottom: 8px;</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="categoryBreakdown">
+          <property name="styleSheet"><string notr="true">background: transparent;</string></property>
+          <layout class="QVBoxLayout" name="breakdownLayout">
+           <property name="leftMargin"><number>0</number></property>
+           <property name="topMargin"><number>0</number></property>
+           <property name="rightMargin"><number>0</number></property>
+           <property name="bottomMargin"><number>0</number></property>
+           <property name="spacing"><number>6</number></property>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <spacer name="catSpacer">
+          <property name="orientation"><enum>Qt::Vertical</enum></property>
+          <property name="sizeHint"><size><width>20</width><height>40</height></size></property>
+         </spacer>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+</ui>

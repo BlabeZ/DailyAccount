@@ -49,7 +49,13 @@ HEADERS += \
     backend/ledger.h
 
 FORMS += \
-    gui/flowpage.ui
+    gui/flowpage.ui \
+    gui/homepage.ui \
+    gui/dashboardpage.ui \
+    gui/statisticspage.ui \
+    gui/categorypage.ui \
+    gui/otherpage.ui \
+    gui/flowdialog.ui
 
 # Windows specific
 win32 {

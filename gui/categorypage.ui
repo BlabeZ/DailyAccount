@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CategoryPage</class>
+ <widget class="QWidget" name="CategoryPage">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>700</width><height>500</height></rect>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="leftMargin"><number>24</number></property>
+   <property name="topMargin"><number>24</number></property>
+   <property name="rightMargin"><number>24</number></property>
+   <property name="bottomMargin"><number>24</number></property>
+   <property name="spacing"><number>16</number></property>
+   <item>
+    <widget class="QLabel" name="titleLabel">
+     <property name="text"><string>🏷 分类管理</string></property>
+     <property name="styleSheet"><string notr="true">font-size: 22px; font-weight: bold; color: #2C3E50; background: transparent;</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="subtitleLabel">
+     <property name="text"><string>预设分类不可删除。正在使用的自定义分类受保护。</string></property>
+     <property name="styleSheet"><string notr="true">color: #95A5A6; font-size: 12px; background: transparent;</string></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="columnsLayout">
+     <property name="spacing"><number>16</number></property>
+     <!-- 左列：支出分类 -->
+     <item>
+      <widget class="QFrame" name="expenseFrame">
+       <property name="class" stdset="0"><string>card</string></property>
+       <layout class="QVBoxLayout" name="expenseLayout">
+        <item>
+         <widget class="QLabel" name="expenseTitle">
+          <property name="text"><string>📉 支出分类</string></property>
+          <property name="styleSheet"><string notr="true">font-size: 16px; font-weight: bold; color: #E74C3C; background: transparent; padding-bottom: 8px;</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="expenseList">
+          <property name="styleSheet"><string notr="true">QListWidget::item { padding: 10px 14px; } QListWidget::item:selected { background: #FDEDEC; color: #2C3E50; }</string></property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="expenseAddRow">
+          <item>
+           <widget class="QLineEdit" name="expenseInput">
+            <property name="placeholderText"><string>新支出分类名称...</string></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnAddExpense">
+            <property name="text"><string>➕ 添加</string></property>
+            <property name="styleSheet"><string notr="true">QPushButton { background: #E74C3C; color: white; padding: 8px 16px; } QPushButton:hover { background: #CB4335; }</string></property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnDelExpense">
+          <property name="text"><string>🗑 删除选中</string></property>
+          <property name="styleSheet"><string notr="true">QPushButton { background: #ECF0F1; color: #E74C3C; padding: 8px; border: 1px solid #E74C3C; border-radius: 6px; } QPushButton:hover { background: #FDEDEC; }</string></property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <!-- 右列：收入分类 -->
+     <item>
+      <widget class="QFrame" name="incomeFrame">
+       <property name="class" stdset="0"><string>card</string></property>
+       <layout class="QVBoxLayout" name="incomeLayout">
+        <item>
+         <widget class="QLabel" name="incomeTitle">
+          <property name="text"><string>📈 收入分类</string></property>
+          <property name="styleSheet"><string notr="true">font-size: 16px; font-weight: bold; color: #27AE60; background: transparent; padding-bottom: 8px;</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="incomeList">
+          <property name="styleSheet"><string notr="true">QListWidget::item { padding: 10px 14px; } QListWidget::item:selected { background: #EAFAF1; color: #2C3E50; }</string></property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="incomeAddRow">
+          <item>
+           <widget class="QLineEdit" name="incomeInput">
+            <property name="placeholderText"><string>新收入分类名称...</string></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnAddIncome">
+            <property name="text"><string>➕ 添加</string></property>
+            <property name="styleSheet"><string notr="true">QPushButton { background: #27AE60; color: white; padding: 8px 16px; } QPushButton:hover { background: #219A52; }</string></property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnDelIncome">
+          <property name="text"><string>🗑 删除选中</string></property>
+          <property name="styleSheet"><string notr="true">QPushButton { background: #ECF0F1; color: #E74C3C; padding: 8px; border: 1px solid #E74C3C; border-radius: 6px; } QPushButton:hover { background: #FDEDEC; }</string></property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+</ui>

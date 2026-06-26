@@ -2,191 +2,46 @@
  * ============================================================================
  * 文件名:   flowdialog.h
  * 所属模块: GUI - 流水添加/编辑对话框（头文件）
- * 功    能: 声明 FlowDialog 类 —— 一个模态对话框，用于让用户
- *           添加新流水记录或修改已有的流水记录。
+ * 功    能: 声明 FlowDialog 类。界面由 flowdialog.ui 定义。
+ *          支持添加模式和编辑模式（通过构造函数重载区分）。
  * 编    码: UTF-8
- * 说    明: 本对话框是一个"双模式"对话框：
- *           - 添加模式（m_editId = -1）：表单为空或默认值，标题为" 添加记录"
- *           - 编辑模式（m_editId >= 0）：表单预填已有数据，标题为" 修改记录"
- *           两种模式共用同一套界面和验证逻辑，通过构造函数的参数区分。
  * ============================================================================
  */
 
 #ifndef FLOWDIALOG_H
 #define FLOWDIALOG_H
 
-// ---------- Qt 框架头文件 ----------
-#include <QLabel>           // QLabel —— 子分类标签
-#include <QDialog>          //【对话框基类】所有对话框窗口的父类。
-                            // FlowDialog 继承自它，因此拥有模态显示（exec()）
-                            // 和返回值机制（Accepted/Rejected）。
+#include <QDialog>
+#include "ui_flowdialog.h"
+#include "record.h"
 
-#include <QDateEdit>        // 【日期编辑框】让用户选择或输入日期（年-月-日）。
-                            // 本对话框用它来设置流水的日期。
-
-#include <QComboBox>        // 【下拉选择框】用户从列表中选一项。
-                            // 本对话框用它来选择流水分类（如"餐饮"、"交通"等）。
-
-#include <QDoubleSpinBox>   // 【浮点数微调框】用户可以输入数字或点击上下箭头调整。
-                            // 本对话框用它来输入流水金额，支持两位小数。
-
-#include <QLineEdit>        // 【单行文本输入框】用户输入一行文字。
-                            // 本对话框用它来输入流水备注。
-
-#include <QTextEdit>        // 【多行文本编辑框】（本头文件中声明但实际未使用）
-                            // 保留以备将来可能需要多行备注。
-
-#include <QRadioButton>     // 【单选按钮】一组中只能选中一个。
-                            // 本对话框用两个单选按钮让用户选择"支出"或"收入"。
-
-// ---------- 项目内部模块 ----------
-#include "record.h"    // Record 结构体和 RecordType 枚举的定义
-
-
-// ---------- 前置声明 ----------
-// 只声明类名，因为头文件中只用到 CategoryManager 的引用（&），
-// 不需要知道它的完整定义。完整定义在 .cpp 文件中通过 #include "category.h" 引入。
 class CategoryManager;
 
-
-/*
- * ============================================================================
- * 类    名: FlowDialog
- * 基    类: QDialog
- * 功    能: 提供一个表单对话框，用于添加或编辑一笔收支记录。
- *
- * 对  话  框  布  局:
- * ┌─────────────────────────────────────────┐
- * │   添加记录  /   修改记录    （标题）  │
- * ├─────────────────────────────────────────┤
- * │         日期: [2026-06-19    ]        │ ← QDateEdit（带日历弹窗）
- * │         时间: [09:30         ]        │ ← QTimeEdit
- * │         类型: (● 支出)  (○ 收入)       │ ← 两个 QRadioButton
- * │         金额: [ 0.01           ]       │ ← QDoubleSpinBox（带前缀）
- * │         分类: [餐饮             ▼]      │ ← QComboBox（根据类型动态变化）
- * │         备注: [可选：添加备注信息...]    │ ← QLineEdit
- * ├─────────────────────────────────────────┤
- * │                   [取消]    [确定]       │ ← 两个 QPushButton
- * └─────────────────────────────────────────┘
- *
- * 双  模  式  设  计:
- *   同一个类通过 m_editId 成员变量的值来区分两种工作模式：
- *
- *   【添加模式】(m_editId == -1)：
- *     - 使用第一个构造函数创建
- *     - 对话框标题为" 添加记录"
- *     - 表单控件填充默认值：今天日期、当前时间、支出类型、金额0.01、第一个分类
- *     - 用户点击确定 → 返回一笔全新的流水数据（id = -1）
- *
- *   【编辑模式】(m_editId >= 0)：
- *     - 使用第二个构造函数创建，传入要编辑的已有流水数据
- *     - 对话框标题为" 修改记录"
- *     - 表单控件预填该流水的现有数据（日期、时间、类型、金额、分类、备注）
- *     - 用户点击确定 → 返回修改后的流水数据（id 保持不变）
- *
- * 分  类  联  动  机  制:
- *   流水分类与流水的记录类型相关联。当你切换"支出"/"收入"单选按钮时：
- *     1. 单选按钮发出 toggled 信号
- *     2. onTypeChanged() 槽函数被调用
- *     3. 根据当前选中的类型（支出/收入），从 CategoryManager 获取对应的分类列表
- *     4. 清空 QComboBox 并用新的分类列表重新填充
- *   例如：选"支出"时，分类下拉框显示 [餐饮, 交通, 购物, ...]
- *         选"收入"时，分类下拉框显示 [工资, 兼职, 投资, ...]
- *
- * 提  交  验  证:
- *   用户点击"确定"按钮后，不是直接接受，而是先经过 onAccept() 验证：
- *     1. 检查金额是否大于 0（不允许 0 或负数金额）
- *     2. 检查是否选择了分类（不允许空分类）
- *     3. 以上两项都通过后，才调用 accept() 关闭对话框
- *   如果有任何一项不通过，弹出警告框并让用户修正。
- * ============================================================================
- */
 class FlowDialog : public QDialog {
-    // 【Qt 元对象宏】必须存在，否则信号和槽机制无法工作。
     Q_OBJECT
 
 public:
-    // ========================================================================
-    // 构造函数（两个重载版本）
-    // ========================================================================
-
-    /*
-     * 函  数: FlowDialog（添加模式构造函数）
-     * 参  数:
-     *   catMan  - 分类管理器引用。用于获取可用的分类列表。
-     *   parent  - 父窗口指针。对话框会以父窗口为中心弹出，且
-     *             父窗口在对话框显示期间不可操作（模态效果）。
-     */
     explicit FlowDialog(CategoryManager& catMan, QWidget *parent = nullptr);
+    FlowDialog(CategoryManager& catMan, const Record& existing, QWidget *parent = nullptr);
 
-    /*
-     * 函  数: FlowDialog（编辑模式构造函数）
-     * 参  数:
-     *   catMan   - 分类管理器引用。
-     *   existing - 已有的流水记录（const 引用，只读取不修改）。
-     *             其 id 字段会被存入 m_editId，其他字段用于预填表单。
-     *   parent   - 父窗口指针。
-     */
-    FlowDialog(CategoryManager& catMan, const Record& existing,
-                      QWidget *parent = nullptr);
-
-    // ========================================================================
-    // 公共接口（对话框关闭后，外部通过这些函数获取用户输入的数据）
-    // ========================================================================
-
-    /*
-     * 函  数: getRecord
-     * 返  回: Record 结构体 —— 包含用户在表单中填写的所有流水数据
-     */
     Record getRecord() const;
-
-    /*
-     * 函  数: getRecordId
-     * 返  回: 当前编辑的流水 ID。如果是添加模式，返回 -1。
-     */
-    int getRecordId() const { return m_editId; }
     bool deleteRequested() const { return m_deleteRequested; }
 
 private slots:
-    // ========================================================================
-    // 槽函数 —— 响应用户交互
-    // ========================================================================
-
     void onTypeChanged();
-    void onCategoryChanged(int index);
-    void updateSubCategory();
-
-    /*
-     * 函  数: onAccept
-     * 触  发: 用户点击"确定"按钮
-     * 功  能: 验证金额>0、分类非空后调用 accept()
-     */
     void onAccept();
 
 private:
     void setupUI();
-
     void populateCategories(RecordType type);
-
     void setRecord(const Record& t);
-
-    // ========================================================================
-    // 成员变量
-    // ========================================================================
+    void updateSubCategory();
 
     CategoryManager& m_catMan;
-
     int m_editId = -1;
     bool m_deleteRequested = false;
 
-    QDateEdit       *m_dateEdit;
-    QRadioButton    *m_radioExpense;
-    QRadioButton    *m_radioIncome;
-    QDoubleSpinBox  *m_amountSpin;
-    QComboBox       *m_categoryCombo;
-    QComboBox       *m_subCategoryCombo;
-    QLabel          *m_subCategoryLabel;
-    QLineEdit       *m_noteEdit;
+    Ui::FlowDialog *ui;
 };
 
 #endif // FLOWDIALOG_H

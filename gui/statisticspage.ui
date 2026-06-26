@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>StatisticsPage</class>
+ <widget class="QWidget" name="StatisticsPage">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>800</width><height>600</height></rect>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="leftMargin"><number>24</number></property>
+   <property name="topMargin"><number>24</number></property>
+   <property name="rightMargin"><number>24</number></property>
+   <property name="bottomMargin"><number>24</number></property>
+   <property name="spacing"><number>16</number></property>
+   <!-- 标题行 -->
+   <item>
+    <layout class="QHBoxLayout" name="titleRow">
+     <item>
+      <widget class="QLabel" name="pageTitle">
+       <property name="text"><string>📈 统计分析</string></property>
+       <property name="styleSheet"><string notr="true">font-size: 22px; font-weight: bold; color: #2C3E50; background: transparent;</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="titleSpacer">
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeHint"><size><width>40</width><height>20</height></size></property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="rangeLabel">
+       <property name="text"><string>时间范围:</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="rangeCombo">
+       <property name="fixedWidth"><number>130</number></property>
+       <item><property name="text"><string>本月</string></property></item>
+       <item><property name="text"><string>近3个月</string></property></item>
+       <item><property name="text"><string>近1年</string></property></item>
+       <item><property name="text"><string>全部</string></property></item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <!-- 汇总数字行 -->
+   <item>
+    <layout class="QHBoxLayout" name="summaryRow">
+     <property name="spacing"><number>16</number></property>
+     <item>
+      <widget class="QLabel" name="summaryIncome">
+       <property name="textFormat"><enum>Qt::RichText</enum></property>
+       <property name="styleSheet"><string notr="true">font-size: 18px; font-weight: bold; color: #27AE60; background: transparent; padding: 8px 0;</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="summaryExpense">
+       <property name="textFormat"><enum>Qt::RichText</enum></property>
+       <property name="styleSheet"><string notr="true">font-size: 18px; font-weight: bold; color: #E74C3C; background: transparent; padding: 8px 0;</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="summaryBalance">
+       <property name="textFormat"><enum>Qt::RichText</enum></property>
+       <property name="styleSheet"><string notr="true">font-size: 18px; font-weight: bold; color: #3498DB; background: transparent; padding: 8px 0;</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="summaryCount">
+       <property name="textFormat"><enum>Qt::RichText</enum></property>
+       <property name="styleSheet"><string notr="true">font-size: 18px; font-weight: bold; color: #7F8C8D; background: transparent; padding: 8px 0;</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="summarySpacer">
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeHint"><size><width>40</width><height>20</height></size></property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <!-- 饼图行 -->
+   <item>
+    <layout class="QHBoxLayout" name="chartsRow">
+     <property name="spacing"><number>16</number></property>
+     <!-- 支出饼图卡片 -->
+     <item>
+      <widget class="QFrame" name="expensePieFrame">
+       <property name="class" stdset="0"><string>card</string></property>
+       <layout class="QVBoxLayout" name="expensePieLayout">
+        <item>
+         <widget class="QLabel" name="expensePieTitle">
+          <property name="text"><string>支出分类分布</string></property>
+          <property name="alignment"><set>Qt::AlignCenter</set></property>
+          <property name="styleSheet"><string notr="true">font-size: 14px; font-weight: bold; padding: 0 0 8px 0; background: transparent;</string></property>
+         </widget>
+        </item>
+        <item>
+         <!-- 占位控件，代码中替换为 PieChartWidget -->
+         <widget class="QWidget" name="expensePiePlaceholder">
+          <property name="minimumSize"><size><width>280</width><height>250</height></size></property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <!-- 收入饼图卡片 -->
+     <item>
+      <widget class="QFrame" name="incomePieFrame">
+       <property name="class" stdset="0"><string>card</string></property>
+       <layout class="QVBoxLayout" name="incomePieLayout">
+        <item>
+         <widget class="QLabel" name="incomePieTitle">
+          <property name="text"><string>收入分类分布</string></property>
+          <property name="alignment"><set>Qt::AlignCenter</set></property>
+          <property name="styleSheet"><string notr="true">font-size: 14px; font-weight: bold; padding: 0 0 8px 0; background: transparent;</string></property>
+         </widget>
+        </item>
+        <item>
+         <!-- 占位控件，代码中替换为 PieChartWidget -->
+         <widget class="QWidget" name="incomePiePlaceholder">
+          <property name="minimumSize"><size><width>280</width><height>250</height></size></property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <!-- 柱状图卡片 -->
+   <item>
+    <widget class="QFrame" name="barFrame">
+     <property name="class" stdset="0"><string>card</string></property>
+     <layout class="QVBoxLayout" name="barLayout">
+      <item>
+       <widget class="QLabel" name="barTitle">
+        <property name="text"><string>月度收支趋势</string></property>
+        <property name="alignment"><set>Qt::AlignCenter</set></property>
+        <property name="styleSheet"><string notr="true">font-size: 14px; font-weight: bold; padding: 0 0 8px 0; background: transparent;</string></property>
+       </widget>
+      </item>
+      <item>
+       <!-- 占位控件，代码中替换为 BarChartWidget -->
+       <widget class="QWidget" name="barPlaceholder">
+        <property name="minimumSize"><size><width>240</width><height>168</height></size></property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+</ui>

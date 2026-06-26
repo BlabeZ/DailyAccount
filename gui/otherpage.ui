@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OtherPage</class>
+ <widget class="QWidget" name="OtherPage">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>500</width><height>400</height></rect>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="leftMargin"><number>24</number></property>
+   <property name="topMargin"><number>24</number></property>
+   <property name="rightMargin"><number>24</number></property>
+   <property name="bottomMargin"><number>24</number></property>
+   <item>
+    <widget class="QLabel" name="titleLabel">
+     <property name="text"><string>🔧 其他功能</string></property>
+     <property name="styleSheet"><string notr="true">font-size: 22px; font-weight: bold; color: #2C3E50; background: transparent;</string></property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="titleSpacer">
+     <property name="orientation"><enum>Qt::Vertical</enum></property>
+     <property name="sizeType"><enum>QSizePolicy::Fixed</enum></property>
+     <property name="sizeHint"><size><width>20</width><height>16</height></size></property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="QStackedWidget" name="featureStack">
+     <!-- 页面0: 功能入口列表 -->
+     <widget class="QWidget" name="featureListPage">
+      <layout class="QVBoxLayout" name="featureListLayout">
+       <property name="spacing"><number>12</number></property>
+       <!-- 数据导出卡片 -->
+       <item>
+        <widget class="QFrame" name="exportCard">
+         <property name="styleSheet"><string notr="true">QFrame { background: white; border-radius: 10px; border: 1px solid #E8ECF1; padding: 20px; }</string></property>
+         <layout class="QHBoxLayout" name="exportCardLayout">
+          <item>
+           <widget class="QLabel" name="exportIcon">
+            <property name="text"><string>📤</string></property>
+            <property name="styleSheet"><string notr="true">font-size: 28px; background: transparent;</string></property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="exportTextLayout">
+            <item>
+             <widget class="QLabel" name="exportTitle">
+              <property name="text"><string>数据导出</string></property>
+              <property name="styleSheet"><string notr="true">font-size: 16px; font-weight: bold; background: transparent;</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="exportDesc">
+              <property name="text"><string>将所有记录导出为TXT文件保存到桌面</string></property>
+              <property name="styleSheet"><string notr="true">font-size: 12px; color: #7F8C8D; background: transparent;</string></property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnExportEnter">
+            <property name="text"><string>进入 →</string></property>
+            <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+            <property name="styleSheet"><string notr="true">QPushButton { background: #3498DB; color: white; border-radius: 6px; padding: 10px 20px; } QPushButton:hover { background: #2980B9; }</string></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <!-- 清除数据卡片 -->
+       <item>
+        <widget class="QFrame" name="clearCard">
+         <property name="styleSheet"><string notr="true">QFrame { background: white; border-radius: 10px; border: 1px solid #E8ECF1; padding: 20px; }</string></property>
+         <layout class="QHBoxLayout" name="clearCardLayout">
+          <item>
+           <widget class="QLabel" name="clearIcon">
+            <property name="text"><string>🗑️</string></property>
+            <property name="styleSheet"><string notr="true">font-size: 28px; background: transparent;</string></property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="clearTextLayout">
+            <item>
+             <widget class="QLabel" name="clearTitle">
+              <property name="text"><string>清除数据</string></property>
+              <property name="styleSheet"><string notr="true">font-size: 16px; font-weight: bold; color: #E74C3C; background: transparent;</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="clearDesc">
+              <property name="text"><string>永久删除所有记录和自定义分类</string></property>
+              <property name="styleSheet"><string notr="true">font-size: 12px; color: #7F8C8D; background: transparent;</string></property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnClearEnter">
+            <property name="text"><string>进入 →</string></property>
+            <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+            <property name="styleSheet"><string notr="true">QPushButton { background: #E74C3C; color: white; border-radius: 6px; padding: 10px 20px; } QPushButton:hover { background: #CB4335; }</string></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="featureListSpacer">
+         <property name="orientation"><enum>Qt::Vertical</enum></property>
+         <property name="sizeHint"><size><width>20</width><height>40</height></size></property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <!-- 页面1: 数据导出详情 -->
+     <widget class="QWidget" name="exportDetailPage">
+      <layout class="QVBoxLayout" name="exportDetailLayout">
+       <property name="spacing"><number>16</number></property>
+       <item>
+        <widget class="QPushButton" name="btnExportBack">
+         <property name="text"><string>← 返回</string></property>
+         <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+         <property name="styleSheet"><string notr="true">QPushButton { background: transparent; color: #3498DB; border: none; font-size: 14px; padding: 0; } QPushButton:hover { color: #2980B9; }</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="exportDetailTitle">
+         <property name="text"><string>📤 数据导出</string></property>
+         <property name="styleSheet"><string notr="true">font-size: 20px; font-weight: bold; color: #2C3E50; background: transparent;</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="exportDetailDesc">
+         <property name="text"><string>将所有记账记录导出为一个 TXT 文本文档，保存在桌面。</string></property>
+         <property name="wordWrap"><bool>true</bool></property>
+         <property name="styleSheet"><string notr="true">font-size: 13px; color: #555; background: transparent; line-height: 1.6;</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnExportData">
+         <property name="text"><string>📤 导出全部数据到桌面</string></property>
+         <property name="minimumHeight"><number>48</number></property>
+         <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+         <property name="styleSheet"><string notr="true">QPushButton { background: #27AE60; color: white; border: none; border-radius: 8px; padding: 14px 32px; font-size: 15px; font-weight: bold; } QPushButton:hover { background: #219A52; }</string></property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="exportDetailSpacer">
+         <property name="orientation"><enum>Qt::Vertical</enum></property>
+         <property name="sizeHint"><size><width>20</width><height>40</height></size></property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <!-- 页面2: 清除数据详情 -->
+     <widget class="QWidget" name="clearDetailPage">
+      <layout class="QVBoxLayout" name="clearDetailLayout">
+       <property name="spacing"><number>16</number></property>
+       <item>
+        <widget class="QPushButton" name="btnClearBack">
+         <property name="text"><string>← 返回</string></property>
+         <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+         <property name="styleSheet"><string notr="true">QPushButton { background: transparent; color: #3498DB; border: none; font-size: 14px; padding: 0; } QPushButton:hover { color: #2980B9; }</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="clearDetailTitle">
+         <property name="text"><string>🗑️ 清除数据</string></property>
+         <property name="styleSheet"><string notr="true">font-size: 20px; font-weight: bold; color: #E74C3C; background: transparent;</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="clearDetailDesc">
+         <property name="text"><string>永久删除所有记账记录和自定义分类。</string></property>
+         <property name="wordWrap"><bool>true</bool></property>
+         <property name="styleSheet"><string notr="true">font-size: 13px; color: #555; background: transparent; line-height: 1.6;</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnClearData">
+         <property name="text"><string>🗑️ 清除全部数据</string></property>
+         <property name="minimumHeight"><number>48</number></property>
+         <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+         <property name="styleSheet"><string notr="true">QPushButton { background: #E74C3C; color: white; border: none; border-radius: 8px; padding: 14px 32px; font-size: 15px; font-weight: bold; } QPushButton:hover { background: #CB4335; }</string></property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="clearDetailSpacer">
+         <property name="orientation"><enum>Qt::Vertical</enum></property>
+         <property name="sizeHint"><size><width>20</width><height>40</height></size></property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+</ui>
