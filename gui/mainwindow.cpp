@@ -599,22 +599,21 @@ void MainWindow::switchToPage(int index)
  */
 void MainWindow::setNavButtonActive(int index)
 {
-    // 遍历所有导航按钮
-    for (int i = 0; i < (int)m_navButtons.size(); i++) {
-        // 将当前按钮的 active 属性设置为 "true" 或 "false"
-        // 如果按钮索引等于目标索引 → "true"（活跃状态，高亮显示）
-        // 否则 → "false"（非活跃状态，默认样式）
-        m_navButtons[i]->setProperty("active", i == index ? "true" : "false");
+    // 活跃/非活跃按钮样式（直接设置stylesheet，避免Qt6动态属性unpolish/polish的样式丢失问题）
+    static const QString activeStyle =
+        "QPushButton { background-color: #3498DB; color: white; border: none; "
+        "border-radius: 8px; padding: 14px 16px; text-align: left; "
+        "font-size: 14px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #2980B9; }";
 
-        /*
-         * 强制刷新按钮样式
-         * 1. unpolish() —— 清除当前按钮的缓存样式（将按钮恢复到未应用样式表的状态）
-         * 2. polish()   —— 重新应用样式表（Qt 会重新计算并应用所有匹配的样式规则）
-         * 这一步是必需的，因为 setProperty 修改的是动态属性，
-         * Qt 不会自动重新评估样式表。
-         */
-        m_navButtons[i]->style()->unpolish(m_navButtons[i]);
-        m_navButtons[i]->style()->polish(m_navButtons[i]);
+    static const QString inactiveStyle =
+        "QPushButton { background-color: transparent; color: #2C3E50; border: none; "
+        "border-radius: 8px; padding: 14px 16px; text-align: left; "
+        "font-size: 14px; font-weight: normal; }"
+        "QPushButton:hover { background-color: #E8EDF2; }";
+
+    for (int i = 0; i < (int)m_navButtons.size(); i++) {
+        m_navButtons[i]->setStyleSheet(i == index ? activeStyle : inactiveStyle);
     }
 }
 
