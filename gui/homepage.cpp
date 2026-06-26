@@ -21,10 +21,10 @@ HomePage::HomePage(QWidget *parent)
 {
     ui->setupUi(this);
 
-    // 标题三个字符的样式
+    // 标题三个字符的样式（缩小至原来的60%）
     const QString charStyle =
         "font-family: 'Microsoft YaHei';"
-        "font-size: 80px;"
+        "font-size: 48px;"
         "font-weight: bold;"
         "color: #2C3E50;"
         "background: transparent;";
