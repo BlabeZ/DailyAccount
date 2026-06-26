@@ -27,6 +27,7 @@ FlowDialog::FlowDialog(CategoryManager& catMan, QWidget *parent)
     setWindowTitle(" 添加记录");
     setupUI();
     setRecord(Record{});
+    ui->dateEdit->setDate(QDate::currentDate());  // 默认日期设为今天
     ui->categoryCombo->setCurrentIndex(-1);
     ui->subCategoryCombo->setVisible(false);
     ui->subCategoryLabel->setVisible(false);
