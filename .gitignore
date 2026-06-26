@@ -20,3 +20,8 @@ data/
 *.user
 *.pro.user*
 ui_flowpage.h
+ui_*.h
+release/
+debug/
+*.o
+moc_*.cpp
