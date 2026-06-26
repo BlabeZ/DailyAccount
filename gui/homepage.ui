@@ -3,43 +3,72 @@
  <class>HomePage</class>
  <widget class="QWidget" name="HomePage">
   <property name="geometry">
-   <rect><x>0</x><y>0</y><width>400</width><height>300</height></rect>
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
   </property>
   <layout class="QVBoxLayout" name="mainLayout">
-   <property name="alignment"><set>Qt::AlignCenter</set></property>
    <item>
     <layout class="QHBoxLayout" name="titleRow">
-     <property name="alignment"><set>Qt::AlignCenter</set></property>
-     <property name="spacing"><number>36</number></property>
+     <property name="spacing">
+      <number>36</number>
+     </property>
      <item>
       <widget class="QLabel" name="charLabel_0">
-       <property name="text"><string>小</string></property>
-       <property name="alignment"><set>Qt::AlignCenter</set></property>
-       <property name="fixedWidth"><number>100</number></property>
+       <property name="text">
+        <string>小</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+       <property name="fixedWidth" stdset="0">
+        <number>100</number>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QLabel" name="charLabel_1">
-       <property name="text"><string>工</string></property>
-       <property name="alignment"><set>Qt::AlignCenter</set></property>
-       <property name="fixedWidth"><number>100</number></property>
+       <property name="text">
+        <string>工</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+       <property name="fixedWidth" stdset="0">
+        <number>100</number>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QLabel" name="charLabel_2">
-       <property name="text"><string>具</string></property>
-       <property name="alignment"><set>Qt::AlignCenter</set></property>
-       <property name="fixedWidth"><number>100</number></property>
+       <property name="text">
+        <string>具</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+       <property name="fixedWidth" stdset="0">
+        <number>100</number>
+       </property>
       </widget>
      </item>
     </layout>
    </item>
    <item>
     <widget class="QLabel" name="subtitleLabel">
-     <property name="text"><string>欢迎使用</string></property>
-     <property name="alignment"><set>Qt::AlignCenter</set></property>
+     <property name="text">
+      <string>欢    迎    使    用</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignCenter</set>
+     </property>
     </widget>
    </item>
   </layout>
  </widget>
+ <resources/>
+ <connections/>
 </ui>

@@ -40,6 +40,8 @@
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QApplication>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
 
 /*
  * ===========================================================================
@@ -199,16 +201,16 @@ void MainWindow::setupUI()
     sideLayout->addWidget(line1);
     sideLayout->addSpacing(10);  // 分隔线下方留 10 像素的额外空白
 
-    // ③ 调用 setupSidebar() 创建四个导航按钮
-    setupSidebar(sideLayout);
+    // ③ 滑动菜单区域（QStackedWidget）
+    m_slideArea = new QStackedWidget;
+    m_slideArea->setStyleSheet("background: transparent;");
 
-    // ④ 弹性空间
-    // addStretch() 添加一个可伸缩的空白区域，它会占据所有剩余空间
-    // 这样就把退出按钮"推"到了侧边栏的最底部
-    sideLayout->addStretch();
+    // 设置两个菜单页面
+    setupSidebar(nullptr);  // 参数传入sideLayout已不需要，在内部使用m_slideArea
 
-    // ⑤ 退出按钮
-    // 使用红色边框和文字表示"退出"操作，鼠标悬停时背景变为浅红色
+    sideLayout->addWidget(m_slideArea, 1);  // stretch=1，占据剩余空间
+
+    // ④ 退出按钮（始终可见）
     QPushButton *btnExit = new QPushButton("  退出程序");
     btnExit->setProperty("class", "nav");
     btnExit->setStyleSheet(
@@ -312,74 +314,149 @@ void MainWindow::setupUI()
  *        - 连接 clicked 信号到 lambda，实现页面切换
  * ===========================================================================
  */
-void MainWindow::setupSidebar(QVBoxLayout *sideLayout)
+void MainWindow::setupSidebar(QVBoxLayout *)
 {
     // ===================================================================
-    // 一级按钮：「日常记账」展开/折叠
+    // 页面0：一级菜单 —— "▶ 日常记账" 入口
     // ===================================================================
-    m_navGroupBtn = new QPushButton("▼ 日常记账");
-    m_navGroupBtn->setCursor(Qt::PointingHandCursor);
-    m_navGroupBtn->setStyleSheet(
+    m_primaryPage = new QWidget;
+    m_primaryPage->setStyleSheet("background: transparent;");
+    QVBoxLayout *primaryLayout = new QVBoxLayout(m_primaryPage);
+    primaryLayout->setContentsMargins(0, 0, 0, 0);
+    primaryLayout->setSpacing(6);
+
+    QPushButton *entryBtn = new QPushButton("▶ 日常记账");
+    entryBtn->setCursor(Qt::PointingHandCursor);
+    entryBtn->setStyleSheet(
         "QPushButton { background: transparent; color: #2C3E50; border: none; "
-        "border-radius: 8px; padding: 12px 16px; text-align: left; "
+        "border-radius: 8px; padding: 14px 16px; text-align: left; "
         "font-size: 14px; font-weight: bold; }"
         "QPushButton:hover { background-color: #E8EDF2; }");
-    connect(m_navGroupBtn, &QPushButton::clicked, this, &MainWindow::toggleNavGroup);
-    sideLayout->addWidget(m_navGroupBtn);
+    connect(entryBtn, &QPushButton::clicked, this, &MainWindow::slideToSecondary);
+    primaryLayout->addWidget(entryBtn);
+    primaryLayout->addStretch();
+
+    m_slideArea->addWidget(m_primaryPage);  // 索引 0
 
     // ===================================================================
-    // 二级导航容器（初始展开）
+    // 页面1：二级菜单 —— "◀ 返回" + 导航按钮
     // ===================================================================
-    m_navGroupContainer = new QWidget;
-    m_navGroupContainer->setStyleSheet("background: transparent;");
-    QVBoxLayout *groupLayout = new QVBoxLayout(m_navGroupContainer);
-    groupLayout->setContentsMargins(12, 0, 0, 0);  // 左侧缩进12px表示层级
-    groupLayout->setSpacing(2);
+    m_secondaryPage = new QWidget;
+    m_secondaryPage->setStyleSheet("background: transparent;");
+    QVBoxLayout *secondaryLayout = new QVBoxLayout(m_secondaryPage);
+    secondaryLayout->setContentsMargins(0, 0, 0, 0);
+    secondaryLayout->setSpacing(2);
 
-    struct NavItem {
-        QString text;
-        QString icon;
-    };
+    // 返回按钮
+    QPushButton *backBtn = new QPushButton("◀ 返回");
+    backBtn->setCursor(Qt::PointingHandCursor);
+    backBtn->setStyleSheet(
+        "QPushButton { background: transparent; color: #7F8C8D; border: none; "
+        "border-radius: 8px; padding: 10px 16px; text-align: left; "
+        "font-size: 13px; }"
+        "QPushButton:hover { background-color: #E8EDF2; color: #2C3E50; }");
+    connect(backBtn, &QPushButton::clicked, this, &MainWindow::slideToPrimary);
+    secondaryLayout->addWidget(backBtn);
 
+    // 分隔
+    QFrame *sep = new QFrame;
+    sep->setFrameShape(QFrame::HLine);
+    sep->setStyleSheet("color: #E8ECF1; background: transparent; margin: 4px 0;");
+    secondaryLayout->addWidget(sep);
+
+    // 导航按钮
+    struct NavItem { QString text; QString icon; };
     std::vector<NavItem> navs = {
-        {"  概览", ""},   // → 切换到索引 1（DashboardPage）
-        {"  账目", ""},   // → 切换到索引 2（FlowPage）
-        {"  统计", ""},   // → 切换到索引 3（StatisticsPage）
-        {"  分类", ""},   // → 切换到索引 4（CategoryPage）
-        {"  其他", ""}    // → 切换到索引 5（OtherPage）
+        {"  概览", ""}, {"  账目", ""}, {"  统计", ""},
+        {"  分类", ""}, {"  其他", ""}
     };
 
     for (size_t i = 0; i < navs.size(); i++) {
         QPushButton *btn = new QPushButton(navs[i].text);
         btn->setProperty("class", "nav");
         btn->setCursor(Qt::PointingHandCursor);
-        groupLayout->addWidget(btn);  // 添加到容器布局而非侧边栏
+        secondaryLayout->addWidget(btn);
         m_navButtons.push_back(btn);
 
-        int pageIndex = static_cast<int>(i) + 1;  // +1 因为索引 0 是入场首页
+        int pageIndex = static_cast<int>(i) + 1;
         connect(btn, &QPushButton::clicked, this, [this, pageIndex]() {
             switchToPage(pageIndex);
         });
     }
+    secondaryLayout->addStretch();
 
-    sideLayout->addWidget(m_navGroupContainer);
+    m_slideArea->addWidget(m_secondaryPage);  // 索引 1
+    m_slideArea->setCurrentIndex(0);           // 默认显示一级菜单
 }
 
 /*
  * ===========================================================================
- * 方法：toggleNavGroup
+ * 方法：slideToSecondary
  * ---------------------------------------------------------------------------
  * 功能描述：
- *     切换"日常记账"导航分组的展开/折叠状态。
- *     折叠时隐藏二级导航按钮，展开时显示。
+ *     一级菜单向左滑出，二级菜单向左滑入。
+ *     使用截图叠加动画实现平滑滑动效果。
  * ---------------------------------------------------------------------------
  */
-void MainWindow::toggleNavGroup()
+void MainWindow::slideToSecondary()
 {
-    bool visible = m_navGroupContainer->isVisible();
-    m_navGroupContainer->setVisible(!visible);
-    // 更新箭头指示符
-    m_navGroupBtn->setText(visible ? "▶ 日常记账" : "▼ 日常记账");
+    if (!m_showingPrimary) return;
+    m_showingPrimary = false;
+
+    // 截取当前一级菜单画面
+    QPixmap snapshot = m_primaryPage->grab();
+    QLabel *overlay = new QLabel(m_slideArea);
+    overlay->setPixmap(snapshot);
+    overlay->setGeometry(0, 0, m_slideArea->width(), m_slideArea->height());
+    overlay->show();
+    overlay->raise();
+
+    // 切换到底层二级菜单
+    m_slideArea->setCurrentIndex(1);
+
+    // 一级菜单截图层向左滑出
+    QPropertyAnimation *anim = new QPropertyAnimation(overlay, "pos");
+    anim->setDuration(250);
+    anim->setStartValue(QPoint(0, 0));
+    anim->setEndValue(QPoint(-m_slideArea->width(), 0));
+    anim->setEasingCurve(QEasingCurve::InOutCubic);
+    connect(anim, &QPropertyAnimation::finished, overlay, &QObject::deleteLater);
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
+}
+
+/*
+ * ===========================================================================
+ * 方法：slideToPrimary
+ * ---------------------------------------------------------------------------
+ * 功能描述：
+ *     二级菜单向右滑出，一级菜单向右滑入。
+ *     使用截图叠加动画实现平滑滑动效果。
+ * ---------------------------------------------------------------------------
+ */
+void MainWindow::slideToPrimary()
+{
+    if (m_showingPrimary) return;
+    m_showingPrimary = true;
+
+    // 截取当前二级菜单画面
+    QPixmap snapshot = m_secondaryPage->grab();
+    QLabel *overlay = new QLabel(m_slideArea);
+    overlay->setPixmap(snapshot);
+    overlay->setGeometry(0, 0, m_slideArea->width(), m_slideArea->height());
+    overlay->show();
+    overlay->raise();
+
+    // 切换到底层一级菜单
+    m_slideArea->setCurrentIndex(0);
+
+    // 二级菜单截图层向右滑出
+    QPropertyAnimation *anim = new QPropertyAnimation(overlay, "pos");
+    anim->setDuration(250);
+    anim->setStartValue(QPoint(0, 0));
+    anim->setEndValue(QPoint(m_slideArea->width(), 0));
+    anim->setEasingCurve(QEasingCurve::InOutCubic);
+    connect(anim, &QPropertyAnimation::finished, overlay, &QObject::deleteLater);
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 /*

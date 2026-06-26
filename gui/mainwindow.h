@@ -5,7 +5,7 @@
  * 功能描述: 声明 MainWindow 类 —— GUI 记账工具的主窗口。
  *
  * 主窗口是用户界面的"外壳"，负责:
- *   1. 提供左侧导航栏（一级按钮"日常记账" → 展开二级按钮: 概览/账目/统计/分类/其他）
+ *   1. 提供左侧导航栏（滑动切换：一级菜单 ↔ 二级菜单）
  *   2. 管理右侧内容区域（使用 QStackedWidget 切换6个功能页面）
  *   3. 显示底部状态栏（实时显示总收入/总支出/结余数据）
  *
@@ -45,7 +45,8 @@ public:
 private slots:
     void switchToPage(int index);
     void updateStatusBar();
-    void toggleNavGroup();
+    void slideToSecondary();
+    void slideToPrimary();
 
 private:
     void setupUI();
@@ -57,18 +58,20 @@ private:
     CategoryManager& m_catMan;
 
     QStackedWidget *m_stackedWidget;
-    HomePage        *m_homePage;         // 索引 0: 启动首页
+    HomePage        *m_homePage;         // 索引 0: 入场首页
     DashboardPage   *m_dashboardPage;    // 索引 1: 概览
-    FlowPage *m_flowPage;               // 索引 2: 账目
+    FlowPage        *m_flowPage;         // 索引 2: 账目
     StatisticsPage  *m_statisticsPage;   // 索引 3: 统计
     CategoryPage    *m_categoryPage;     // 索引 4: 分类
-    OtherPage       *m_otherPage;        // 索引 5: 其他功能（数据导出等）
+    OtherPage       *m_otherPage;        // 索引 5: 其他功能
 
     std::vector<QPushButton*> m_navButtons;
 
-    // 侧边栏分组
-    QPushButton *m_navGroupBtn;      // "日常记账"展开/折叠按钮
-    QWidget     *m_navGroupContainer; // 二级导航按钮容器
+    // 侧边栏滑动菜单
+    QStackedWidget *m_slideArea;  // 滑动容器（截图叠加动画实现滑动）
+    QWidget *m_primaryPage;     // 一级菜单页
+    QWidget *m_secondaryPage;   // 二级菜单页
+    bool m_showingPrimary = true;
 
     QLabel *m_statusIncome;
     QLabel *m_statusExpense;
