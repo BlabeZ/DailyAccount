@@ -49,6 +49,7 @@
 #include <QMessageBox>
 #include <QScrollArea>
 #include <QDoubleSpinBox>
+#include <QInputDialog>
 
 /*
  * ===========================================================================
@@ -261,7 +262,7 @@ void MainWindow::setupUI()
     m_flowPage  = new FlowPage(m_ledger, m_catMan, m_classifier);
     m_statisticsPage   = new StatisticsPage(m_ledger, m_catMan);
     m_categoryPage     = new CategoryPage(m_ledger, m_catMan, m_classifier);
-    m_otherPage        = new OtherPage(m_ledger, m_goalMan);
+    m_otherPage        = new OtherPage(m_ledger);
 
     // 将页面按固定顺序添加到堆叠容器中
     // 索引 0：启动首页 —— 显示"记账本"欢迎页
@@ -274,11 +275,14 @@ void MainWindow::setupUI()
     m_stackedWidget->addWidget(m_statisticsPage);     // 3
     // 索引 4：分类页 —— 管理收入和支出的分类
     m_stackedWidget->addWidget(m_categoryPage);       // 4
-    // 索引 5：其他功能页 —— 数据导出等辅助功能
-    m_stackedWidget->addWidget(m_otherPage);          // 5
-    // 索引 6：预算管理页
+    // 索引 5：预算管理页
     m_budgetPage = createBudgetPage();
-    m_stackedWidget->addWidget(m_budgetPage);         // 6
+    m_stackedWidget->addWidget(m_budgetPage);         // 5
+    // 索引 6：储蓄目标页
+    m_goalPage = createGoalPage();
+    m_stackedWidget->addWidget(m_goalPage);           // 6
+    // 索引 7：其他功能页 —— 数据导出等辅助功能
+    m_stackedWidget->addWidget(m_otherPage);          // 7
 
     // 将堆叠容器添加到主布局的右侧，参数 '1' 表示 stretch factor
     // stretch factor 设为 1 意味着内容区会占据所有剩余的水平空间
@@ -382,7 +386,7 @@ void MainWindow::setupSidebar(QVBoxLayout *)
     struct NavItem { QString text; QString icon; };
     std::vector<NavItem> navs = {
         {"  概览", ""}, {"  账目", ""}, {"  统计", ""},
-        {"  分类", ""}, {"  预算", ""}, {"  其他", ""}
+        {"  分类", ""}, {"  预算", ""}, {"  储蓄", ""}, {"  其他", ""}
     };
 
     for (size_t i = 0; i < navs.size(); i++) {
@@ -578,8 +582,9 @@ void MainWindow::switchToPage(int index)
     case 2: m_flowPage->refresh();        break;  // 刷新账目页
     case 3: m_statisticsPage->refresh();  break;  // 刷新统计页
     case 4: m_categoryPage->refresh();    break;  // 刷新分类页
-    case 5: m_otherPage->refresh();       break;  // 刷新其他功能页
-    case 6: refreshBudgetPage();          break;  // 刷新预算管理页
+    case 5: refreshBudgetPage();          break;  // 刷新预算管理页
+    case 6: refreshGoalPage();            break;  // 刷新储蓄目标页
+    case 7: m_otherPage->refresh();       break;  // 刷新其他功能页
     }
 }
 
@@ -1072,5 +1077,168 @@ void MainWindow::refreshBudgetPage()
                               "background: transparent;");
         empty->setAlignment(Qt::AlignCenter);
         listLayout->insertWidget(listLayout->count() - 1, empty);
+    }
+}
+
+/*
+ * ===========================================================================
+ * 方法：createGoalPage
+ * ---------------------------------------------------------------------------
+ * 功能描述：
+ *     创建储蓄目标管理页面。包含目标列表、添加目标和删除目标功能。
+ * ===========================================================================
+ */
+QWidget* MainWindow::createGoalPage()
+{
+    QWidget *page = new QWidget;
+    page->setStyleSheet("background: #F5F7FA;");
+    QVBoxLayout *mainLayout = new QVBoxLayout(page);
+    mainLayout->setContentsMargins(32, 24, 32, 24);
+    mainLayout->setSpacing(16);
+
+    // 标题
+    QLabel *title = new QLabel(QString::fromUtf8("🎯 储蓄目标"));
+    title->setStyleSheet("font-size: 22px; font-weight: bold; color: #2C3E50; "
+                          "background: transparent; padding: 0 0 8px 0;");
+    mainLayout->addWidget(title);
+
+    QLabel *subtitle = new QLabel(QString::fromUtf8(
+        "设定储蓄目标，系统会根据您的收支结余自动追踪进度。"));
+    subtitle->setStyleSheet("color: #95A5A6; font-size: 13px; background: transparent; "
+                             "padding-bottom: 8px;");
+    subtitle->setWordWrap(true);
+    mainLayout->addWidget(subtitle);
+
+    // 目标列表
+    m_goalPageList = new QListWidget;
+    m_goalPageList->setStyleSheet(
+        "QListWidget { background: white; border: 1px solid #E8ECF1; border-radius: 8px; } "
+        "QListWidget::item { padding: 14px 16px; border-bottom: 1px solid #F0F3F7; "
+        "font-size: 13px; } "
+        "QListWidget::item:selected { background: #EBF5FB; }");
+    mainLayout->addWidget(m_goalPageList, 1);
+
+    // 按钮行
+    QHBoxLayout *btnRow = new QHBoxLayout;
+    btnRow->setSpacing(12);
+
+    QPushButton *btnAdd = new QPushButton(QString::fromUtf8("➕ 添加目标"));
+    btnAdd->setMinimumHeight(42);
+    btnAdd->setStyleSheet("QPushButton { background: #9B59B6; color: white; "
+                           "border-radius: 8px; padding: 12px 24px; font-size: 14px; "
+                           "font-weight: bold; } "
+                           "QPushButton:hover { background: #8E44AD; }");
+    connect(btnAdd, &QPushButton::clicked, this, [this]() {
+        bool ok;
+        QString name = QInputDialog::getText(this,
+            QString::fromUtf8("添加储蓄目标"),
+            QString::fromUtf8("目标名称（如「年底旅行基金」）:"),
+            QLineEdit::Normal, "", &ok);
+        if (!ok || name.trimmed().isEmpty()) return;
+
+        double target = QInputDialog::getDouble(this,
+            QString::fromUtf8("目标金额"),
+            QString::fromUtf8("目标金额（元）:"),
+            10000.00, 0.01, 99999999.99, 2, &ok);
+        if (!ok || target <= 0) return;
+
+        QString deadline = QInputDialog::getText(this,
+            QString::fromUtf8("截止日期"),
+            QString::fromUtf8("截止日期（YYYY-MM-DD）:\n例如: 2026-12-31"),
+            QLineEdit::Normal,
+            QDate::currentDate().addYears(1).toString("yyyy-MM-dd"), &ok);
+        if (!ok || deadline.trimmed().isEmpty()) return;
+
+        SavingsGoal g;
+        g.name = name.trimmed().toStdString();
+        g.targetAmount = target;
+        g.deadline = deadline.trimmed().toStdString();
+        m_goalMan.addGoal(g);
+        refreshGoalPage();
+    });
+
+    QPushButton *btnDel = new QPushButton(QString::fromUtf8("🗑 删除选中"));
+    btnDel->setMinimumHeight(42);
+    btnDel->setStyleSheet("QPushButton { background: #ECF0F1; color: #E74C3C; "
+                           "border: 1px solid #E74C3C; border-radius: 8px; "
+                           "padding: 12px 24px; font-size: 14px; } "
+                           "QPushButton:hover { background: #FDEDEC; }");
+    connect(btnDel, &QPushButton::clicked, this, [this]() {
+        if (!m_goalPageList) return;
+        auto *item = m_goalPageList->currentItem();
+        if (!item || !(item->flags() & Qt::ItemIsSelectable)) {
+            QMessageBox::information(this, QString::fromUtf8("提示"),
+                                     QString::fromUtf8("请先选中要删除的目标。"));
+            return;
+        }
+        int id = item->data(Qt::UserRole).toInt();
+        auto *goal = m_goalMan.findGoal(id);
+        if (!goal) return;
+        QMessageBox msgBox(this);
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setWindowTitle(QString::fromUtf8("确认删除"));
+        msgBox.setText(QString::fromUtf8("确定要删除储蓄目标「%1」吗？")
+                           .arg(QString::fromStdString(goal->name)));
+        msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+        if (msgBox.exec() == QMessageBox::Ok) {
+            m_goalMan.deleteGoal(id);
+            refreshGoalPage();
+        }
+    });
+
+    btnRow->addWidget(btnAdd);
+    btnRow->addWidget(btnDel);
+    btnRow->addStretch();
+    mainLayout->addLayout(btnRow);
+
+    return page;
+}
+
+/*
+ * ===========================================================================
+ * 方法：refreshGoalPage
+ * ===========================================================================
+ */
+void MainWindow::refreshGoalPage()
+{
+    if (!m_goalPageList) return;
+    m_goalPageList->clear();
+
+    // 同步进度
+    m_goalMan.updateProgress(m_ledger.getBalance());
+
+    const auto& goals = m_goalMan.getAllGoals();
+    for (const auto& g : goals) {
+        double pct = g.progressPercent();
+        QString display = QString::fromUtf8("%1  |  目标: ¥%2  |  已存: ¥%3  |  进度: %4%  |  截止: %5")
+                              .arg(QString::fromStdString(g.name))
+                              .arg(g.targetAmount, 0, 'f', 0)
+                              .arg(g.currentSaved, 0, 'f', 0)
+                              .arg(pct, 0, 'f', 0)
+                              .arg(QString::fromStdString(g.deadline));
+
+        if (g.isCompleted()) {
+            display += QString::fromUtf8("  ✅ 已达成");
+        } else if (g.monthlyNeeded() > 0) {
+            display += QString::fromUtf8("  [需月存 ¥%1 / 约 ¥%2/天]")
+                           .arg(g.monthlyNeeded(), 0, 'f', 0)
+                           .arg(g.dailyNeeded(), 0, 'f', 0);
+        }
+
+        QListWidgetItem *item = new QListWidgetItem(display);
+        item->setData(Qt::UserRole, g.id);
+        if (g.isCompleted())
+            item->setForeground(QColor("#27AE60"));
+        else if (pct >= 50)
+            item->setForeground(QColor("#3498DB"));
+        m_goalPageList->addItem(item);
+    }
+
+    if (goals.empty()) {
+        QListWidgetItem *item = new QListWidgetItem(
+            QString::fromUtf8("暂无储蓄目标。点击「添加目标」来创建。"));
+        item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+        item->setForeground(QColor("#95A5A6"));
+        m_goalPageList->addItem(item);
     }
 }

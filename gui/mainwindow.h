@@ -23,6 +23,7 @@
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QComboBox>
+#include <QListWidget>
 #include <vector>
 
 class Ledger;
@@ -72,8 +73,9 @@ private:
     FlowPage        *m_flowPage;         // 索引 2: 账目
     StatisticsPage  *m_statisticsPage;   // 索引 3: 统计
     CategoryPage    *m_categoryPage;     // 索引 4: 分类
-    OtherPage       *m_otherPage;        // 索引 5: 其他功能
-    QWidget         *m_budgetPage;       // 索引 6: 预算管理
+    OtherPage       *m_otherPage;        // 索引 7: 其他功能
+    QWidget         *m_budgetPage;       // 索引 5: 预算管理
+    QWidget         *m_goalPage;         // 索引 6: 储蓄目标
 
     std::vector<QPushButton*> m_navButtons;
 
@@ -93,6 +95,11 @@ private:
     void refreshBudgetPage();
     QComboBox *m_budgetMonthCombo = nullptr;
     QWidget *m_budgetListContainer = nullptr;
+
+    // 储蓄目标页面相关
+    QWidget* createGoalPage();
+    void refreshGoalPage();
+    QListWidget *m_goalPageList = nullptr;
 };
 
 #endif // MAINWINDOW_H

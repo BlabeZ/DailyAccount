@@ -472,6 +472,7 @@ int main(int argc, char *argv[])
     //   - 棨
     // =========================================================================
     MainWindow window(ledger, catMan, budgetMan, classifier, goalMan);
+    Q_UNUSED(goalMan);  // goalMan is passed but used in MainWindow directly
     window.showMaximized();  // 默认最大化窗口启动
 
     // =========================================================================
