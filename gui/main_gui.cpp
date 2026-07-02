@@ -27,9 +27,12 @@
 #include "mainwindow.h"   //    +  + 
 
 // ----  ----
-#include "storage.h"      // 洢  
+#include "storage.h"      // 洢
 #include "category.h"     //   +壩
-#include "ledger.h"       //   
+#include "ledger.h"       //
+#include "budget.h"       //
+#include "classifier.h"   //
+#include "goal.h"         //
 
 // ============================================================================
 // : main   C++ 
@@ -448,15 +451,27 @@ int main(int argc, char *argv[])
     //     ·
     ledger.load();
 
+    // 4f.
+    BudgetManager budgetMan("data");
+    budgetMan.load();
+
+    // 4g.
+    SmartClassifier classifier("data");
+    classifier.load();
+
+    // 4h.
+    GoalManager goalMan("data");
+    goalMan.load();
+
     // =========================================================================
-    // 5: 
+    // 5:
     // MainWindow :
     //   - ///
     //   - 4沢 QStackedWidget
-    //   - 
+    //   -
     //   - 棨
     // =========================================================================
-    MainWindow window(ledger, catMan);
+    MainWindow window(ledger, catMan, budgetMan, classifier, goalMan);
     window.showMaximized();  // 默认最大化窗口启动
 
     // =========================================================================

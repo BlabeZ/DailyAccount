@@ -16,13 +16,16 @@
 #include "record.h"
 
 class CategoryManager;
+class SmartClassifier;
 
 class FlowDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit FlowDialog(CategoryManager& catMan, QWidget *parent = nullptr);
-    FlowDialog(CategoryManager& catMan, const Record& existing, QWidget *parent = nullptr);
+    explicit FlowDialog(CategoryManager& catMan, SmartClassifier& classifier,
+                        QWidget *parent = nullptr);
+    FlowDialog(CategoryManager& catMan, SmartClassifier& classifier,
+               const Record& existing, QWidget *parent = nullptr);
 
     Record getRecord() const;
     bool deleteRequested() const { return m_deleteRequested; }
@@ -38,6 +41,7 @@ private:
     void updateSubCategory();
 
     CategoryManager& m_catMan;
+    SmartClassifier& m_classifier;
     int m_editId = -1;
     bool m_deleteRequested = false;
 

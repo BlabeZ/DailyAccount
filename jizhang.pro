@@ -32,7 +32,10 @@ SOURCES += \
     gui/otherpage.cpp \
     backend/category.cpp \
     backend/storage.cpp \
-    backend/ledger.cpp
+    backend/ledger.cpp \
+    backend/budget.cpp \
+    backend/classifier.cpp \
+    backend/goal.cpp
 
 HEADERS += \
     gui/mainwindow.h \
@@ -46,7 +49,10 @@ HEADERS += \
     backend/record.h \
     backend/category.h \
     backend/storage.h \
-    backend/ledger.h
+    backend/ledger.h \
+    backend/budget.h \
+    backend/classifier.h \
+    backend/goal.h
 
 FORMS += \
     gui/flowpage.ui \

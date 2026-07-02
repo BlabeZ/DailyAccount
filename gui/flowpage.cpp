@@ -48,10 +48,12 @@
  * 注  意: 构造函数不加载数据。界面创建完成后是空白的，需要外部调用
  *         refresh() 才会从账本读取数据并显示。
  */
-FlowPage::FlowPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
+FlowPage::FlowPage(Ledger& ledger, CategoryManager& catMan,
+                   SmartClassifier& classifier, QWidget *parent)
     : QWidget(parent)           // 先调用父类 QWidget 的构造函数
     , m_ledger(ledger)          // 绑定账本引用
     , m_catMan(catMan)          // 绑定分类管理器引用
+    , m_classifier(classifier)  // 绑定智能分类器引用
     , ui(new Ui::FlowPage)      // 初始化 UI
 {
     // 加载由 Qt Designer / uic 生成的界面
@@ -246,7 +248,7 @@ void FlowPage::loadPage()
 // ============================================================================
 void FlowPage::onAdd()
 {
-    FlowDialog dlg(m_catMan, this);
+    FlowDialog dlg(m_catMan, m_classifier, this);
 
     if (dlg.exec() == QDialog::Accepted) {
         m_ledger.addRecord(dlg.getRecord());
@@ -266,7 +268,7 @@ void FlowPage::onEdit(int id)
     Record* t = m_ledger.findRecord(id);
     if (!t) return;
 
-    FlowDialog dlg(m_catMan, *t, this);
+    FlowDialog dlg(m_catMan, m_classifier, *t, this);
 
     if (dlg.exec() == QDialog::Accepted) {
         m_ledger.updateRecord(id, dlg.getRecord());

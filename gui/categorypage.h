@@ -20,12 +20,14 @@
 
 class Ledger;
 class CategoryManager;
+class SmartClassifier;
 
 class CategoryPage : public QWidget {
     Q_OBJECT
 
 public:
-    explicit CategoryPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent = nullptr);
+    explicit CategoryPage(Ledger& ledger, CategoryManager& catMan,
+                          SmartClassifier& classifier, QWidget *parent = nullptr);
     void refresh();
 
 private slots:
@@ -33,14 +35,20 @@ private slots:
     void onAddIncomeCategory();
     void onDeleteExpenseCategory();
     void onDeleteIncomeCategory();
+    void onLearnKeywords();
+    void onAddKeywordMapping();
+    void onDeleteKeywordMapping();
 
 private:
     void loadCategories();
+    void loadKeywordMappings();
 
     Ledger& m_ledger;
     CategoryManager& m_catMan;
+    SmartClassifier& m_classifier;
 
     Ui::CategoryPage *ui;
+    QListWidget *m_keywordList = nullptr;
 };
 
 #endif // CATEGORYPAGE_H

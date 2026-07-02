@@ -22,10 +22,14 @@
 #include <QLabel>
 #include <QStatusBar>
 #include <QVBoxLayout>
+#include <QComboBox>
 #include <vector>
 
 class Ledger;
 class CategoryManager;
+class BudgetManager;
+class SmartClassifier;
+class GoalManager;
 class HomePage;
 class DashboardPage;
 class FlowPage;
@@ -37,7 +41,9 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(Ledger& ledger, CategoryManager& catMan, QWidget *parent = nullptr);
+    explicit MainWindow(Ledger& ledger, CategoryManager& catMan,
+                        BudgetManager& budgetMan, SmartClassifier& classifier,
+                        GoalManager& goalMan, QWidget *parent = nullptr);
     ~MainWindow();
 
     void refreshAll();
@@ -56,6 +62,9 @@ private:
 
     Ledger& m_ledger;
     CategoryManager& m_catMan;
+    BudgetManager& m_budgetMan;
+    SmartClassifier& m_classifier;
+    GoalManager& m_goalMan;
 
     QStackedWidget *m_stackedWidget;
     HomePage        *m_homePage;         // 索引 0: 入场首页
@@ -64,6 +73,7 @@ private:
     StatisticsPage  *m_statisticsPage;   // 索引 3: 统计
     CategoryPage    *m_categoryPage;     // 索引 4: 分类
     OtherPage       *m_otherPage;        // 索引 5: 其他功能
+    QWidget         *m_budgetPage;       // 索引 6: 预算管理
 
     std::vector<QPushButton*> m_navButtons;
 
@@ -76,6 +86,13 @@ private:
     QLabel *m_statusIncome;
     QLabel *m_statusExpense;
     QLabel *m_statusBalance;
+    QLabel *m_statusBudget;    // 预算超支警告
+
+    // 预算页面相关
+    QWidget* createBudgetPage();
+    void refreshBudgetPage();
+    QComboBox *m_budgetMonthCombo = nullptr;
+    QWidget *m_budgetListContainer = nullptr;
 };
 
 #endif // MAINWINDOW_H

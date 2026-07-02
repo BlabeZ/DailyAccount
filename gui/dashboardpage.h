@@ -15,21 +15,29 @@
 
 class Ledger;
 class CategoryManager;
+class BudgetManager;
+class GoalManager;
 
 class DashboardPage : public QWidget {
     Q_OBJECT
 
 public:
-    explicit DashboardPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent = nullptr);
+    explicit DashboardPage(Ledger& ledger, CategoryManager& catMan,
+                           BudgetManager& budgetMan, GoalManager& goalMan,
+                           QWidget *parent = nullptr);
     void refresh();
 
 private:
     void refreshSummary();
     void refreshRecentRecords();
     void refreshCategoryBreakdown();
+    void refreshBudgetOverview();
+    void refreshGoalCards();
 
     Ledger& m_ledger;
     CategoryManager& m_catMan;
+    BudgetManager& m_budgetMan;
+    GoalManager& m_goalMan;
 
     Ui::DashboardPage *ui;
 };

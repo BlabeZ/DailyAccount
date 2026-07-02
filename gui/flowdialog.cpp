@@ -9,6 +9,7 @@
 
 #include "flowdialog.h"
 #include "category.h"
+#include "classifier.h"
 #include <QButtonGroup>
 #include <QMessageBox>
 #include <QDate>
@@ -18,9 +19,11 @@
 #include <QPushButton>
 
 // ==================== 添加模式构造函数 ====================
-FlowDialog::FlowDialog(CategoryManager& catMan, QWidget *parent)
+FlowDialog::FlowDialog(CategoryManager& catMan, SmartClassifier& classifier,
+                       QWidget *parent)
     : QDialog(parent)
     , m_catMan(catMan)
+    , m_classifier(classifier)
     , m_editId(-1)
     , ui(new Ui::FlowDialog)
 {
@@ -35,9 +38,11 @@ FlowDialog::FlowDialog(CategoryManager& catMan, QWidget *parent)
 }
 
 // ==================== 编辑模式构造函数 ====================
-FlowDialog::FlowDialog(CategoryManager& catMan, const Record& existing, QWidget *parent)
+FlowDialog::FlowDialog(CategoryManager& catMan, SmartClassifier& classifier,
+                       const Record& existing, QWidget *parent)
     : QDialog(parent)
     , m_catMan(catMan)
+    , m_classifier(classifier)
     , m_editId(existing.id)
     , ui(new Ui::FlowDialog)
 {
@@ -105,9 +110,44 @@ void FlowDialog::setupUI()
     connect(ui->btnCancel, &QPushButton::clicked, this, &QDialog::reject);
     connect(ui->btnOk, &QPushButton::clicked, this, &FlowDialog::onAccept);
 
+    // 智能分类：备注文字变化时自动建议分类
+    connect(ui->noteEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (text.isEmpty() || ui->categoryCombo->currentIndex() >= 0) return;
+        RecordType type = ui->radioIncome->isChecked()
+            ? RecordType::INCOME : RecordType::EXPENSE;
+        std::string suggestion = m_classifier.suggest(text.toStdString(), type);
+        if (!suggestion.empty()) {
+            QString sugStr = QString::fromStdString(suggestion);
+            // 处理子分类格式: "饮食(咖啡)"
+            int paren = sugStr.indexOf('(');
+            if (paren > 0) {
+                QString mainCat = sugStr.left(paren);
+                QString subCat = sugStr.mid(paren + 1, sugStr.length() - paren - 2);
+                int idx = ui->categoryCombo->findText(mainCat);
+                if (idx >= 0) {
+                    ui->categoryCombo->setCurrentIndex(idx);
+                    updateSubCategory();
+                    int subIdx = ui->subCategoryCombo->findText(subCat);
+                    if (subIdx >= 0) ui->subCategoryCombo->setCurrentIndex(subIdx);
+                }
+            } else {
+                int idx = ui->categoryCombo->findText(sugStr);
+                if (idx >= 0) ui->categoryCombo->setCurrentIndex(idx);
+            }
+            // 更新建议标签
+            ui->suggestLabel->setText(QString("💡 智能建议: %1").arg(sugStr));
+            ui->suggestLabel->setStyleSheet("color: #27AE60; font-size: 11px; "
+                                             "background: transparent; padding: 2px 0;");
+            ui->suggestLabel->setVisible(true);
+        } else {
+            ui->suggestLabel->setVisible(false);
+        }
+    });
+
     // 初始化分类列表
     populateCategories(RecordType::EXPENSE);
     ui->categoryCombo->setCurrentIndex(-1);
+    ui->suggestLabel->setVisible(false);
 }
 
 // ==================== 分类联动 ====================

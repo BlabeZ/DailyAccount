@@ -29,6 +29,7 @@
 namespace Ui { class FlowPage; }
 class Ledger;               // 账本类 —— 负责所有流水数据的增删改查
 class CategoryManager;      // 分类管理器 —— 管理所有收支分类
+class SmartClassifier;      // 智能分类器
 
 
 /*
@@ -83,6 +84,7 @@ public:
      *          搭建整个页面的界面。不在这里加载数据，数据由外部调用 refresh() 触发。
      */
     explicit FlowPage(Ledger& ledger, CategoryManager& catMan,
+                             SmartClassifier& classifier,
                              QWidget *parent = nullptr);
 
     ~FlowPage() override;
@@ -221,6 +223,12 @@ private:
      *   FlowPage 需要它在弹出编辑对话框时提供可选的分类列表。
      */
     CategoryManager& m_catMan;
+
+    /*
+     * m_classifier: 智能分类器引用
+     *   用于在编辑对话框中根据备注自动建议分类。
+     */
+    SmartClassifier& m_classifier;
 
     // ========================================================================
     // 成员变量 —— UI（由 flowpage.ui 生成）

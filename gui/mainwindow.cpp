@@ -37,11 +37,18 @@
 #include "categorypage.h"
 #include "otherpage.h"
 #include "ledger.h"
+#include "budget.h"
+#include "classifier.h"
+#include "goal.h"
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QApplication>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
+#include <QDate>
+#include <QMessageBox>
+#include <QScrollArea>
+#include <QDoubleSpinBox>
 
 /*
  * ===========================================================================
@@ -67,8 +74,11 @@
  *     5. 调用 updateStatusBar() 初始化状态栏显示的金额
  * ===========================================================================
  */
-MainWindow::MainWindow(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
-    : QMainWindow(parent), m_ledger(ledger), m_catMan(catMan)
+MainWindow::MainWindow(Ledger& ledger, CategoryManager& catMan,
+                     BudgetManager& budgetMan, SmartClassifier& classifier,
+                     GoalManager& goalMan, QWidget *parent)
+    : QMainWindow(parent), m_ledger(ledger), m_catMan(catMan),
+      m_budgetMan(budgetMan), m_classifier(classifier), m_goalMan(goalMan)
 {
     setupUI();                // 搭建主窗口的全部界面结构
     // 启动时显示首页（索引0），不选中任何导航按钮
@@ -246,11 +256,12 @@ void MainWindow::setupUI()
 
     // 创建首页和五个功能页面实例
     m_homePage         = new HomePage;
-    m_dashboardPage    = new DashboardPage(m_ledger, m_catMan);
-    m_flowPage  = new FlowPage(m_ledger, m_catMan);
+    m_dashboardPage    = new DashboardPage(m_ledger, m_catMan,
+                                               m_budgetMan, m_goalMan);
+    m_flowPage  = new FlowPage(m_ledger, m_catMan, m_classifier);
     m_statisticsPage   = new StatisticsPage(m_ledger, m_catMan);
-    m_categoryPage     = new CategoryPage(m_ledger, m_catMan);
-    m_otherPage        = new OtherPage(m_ledger);
+    m_categoryPage     = new CategoryPage(m_ledger, m_catMan, m_classifier);
+    m_otherPage        = new OtherPage(m_ledger, m_goalMan);
 
     // 将页面按固定顺序添加到堆叠容器中
     // 索引 0：启动首页 —— 显示"记账本"欢迎页
@@ -265,6 +276,9 @@ void MainWindow::setupUI()
     m_stackedWidget->addWidget(m_categoryPage);       // 4
     // 索引 5：其他功能页 —— 数据导出等辅助功能
     m_stackedWidget->addWidget(m_otherPage);          // 5
+    // 索引 6：预算管理页
+    m_budgetPage = createBudgetPage();
+    m_stackedWidget->addWidget(m_budgetPage);         // 6
 
     // 将堆叠容器添加到主布局的右侧，参数 '1' 表示 stretch factor
     // stretch factor 设为 1 意味着内容区会占据所有剩余的水平空间
@@ -368,7 +382,7 @@ void MainWindow::setupSidebar(QVBoxLayout *)
     struct NavItem { QString text; QString icon; };
     std::vector<NavItem> navs = {
         {"  概览", ""}, {"  账目", ""}, {"  统计", ""},
-        {"  分类", ""}, {"  其他", ""}
+        {"  分类", ""}, {"  预算", ""}, {"  其他", ""}
     };
 
     for (size_t i = 0; i < navs.size(); i++) {
@@ -507,10 +521,12 @@ void MainWindow::setupStatusBar()
     m_statusIncome  = new QLabel;
     m_statusExpense = new QLabel;
     m_statusBalance = new QLabel;
+    m_statusBudget  = new QLabel;
 
     // 将收入和支出标签添加到状态栏的左侧区域（按添加顺序排列）
     sb->addWidget(m_statusIncome);
     sb->addWidget(m_statusExpense);
+    sb->addWidget(m_statusBudget);
 
     // 将结余标签添加到状态栏的右侧永久区域
     // addPermanentWidget 使得该标签始终显示在状态栏的最右侧
@@ -563,6 +579,7 @@ void MainWindow::switchToPage(int index)
     case 3: m_statisticsPage->refresh();  break;  // 刷新统计页
     case 4: m_categoryPage->refresh();    break;  // 刷新分类页
     case 5: m_otherPage->refresh();       break;  // 刷新其他功能页
+    case 6: refreshBudgetPage();          break;  // 刷新预算管理页
     }
 }
 
@@ -704,6 +721,32 @@ void MainWindow::updateStatusBar()
             .arg(balance >= 0 ? "#27AE60" : "#E74C3C")  // %1 — 根据正负选择颜色
             .arg(balance >= 0 ? "+" : "")                // %2 — 正数时加 "+" 号
             .arg(balance, 0, 'f', 2));                   // %3 — 结余金额（保留两位小数）
+
+    // 预算警告
+    QDate today = QDate::currentDate();
+    std::string month = today.toString("yyyy-MM").toStdString();
+    Budget overallBudget = m_budgetMan.getBudget(month, "OVERALL");
+    if (overallBudget.amount > 0.0) {
+        double pct = overallBudget.percentage();
+        if (pct >= 100.0) {
+            m_statusBudget->setText(
+                QString("<span style='color:#E74C3C;font-weight:bold;'>"
+                        "  本月预算已超支! (已用%1%)</span>")
+                    .arg(pct, 0, 'f', 0));
+        } else if (pct >= 80.0) {
+            m_statusBudget->setText(
+                QString("<span style='color:#E67E22;font-weight:bold;'>"
+                        "  本月预算已使用%1%</span>")
+                    .arg(pct, 0, 'f', 0));
+        } else {
+            m_statusBudget->setText(
+                QString("<span style='color:#95A5A6;'>"
+                        "  预算剩余 ¥%1</span>")
+                    .arg(overallBudget.remaining(), 0, 'f', 2));
+        }
+    } else {
+        m_statusBudget->setText("");
+    }
 }
 
 /*
@@ -735,10 +778,299 @@ void MainWindow::updateStatusBar()
  */
 void MainWindow::refreshAll()
 {
+    // 同步预算已花费数据
+    QDate today = QDate::currentDate();
+    std::string month = today.toString("yyyy-MM").toStdString();
+    auto records = m_ledger.getRecordsByDateRange(
+        today.toString("yyyy-MM-01").toStdString(),
+        today.toString("yyyy-MM-dd").toStdString());
+    std::map<std::string, double> expenseByCat;
+    double totalExp = 0.0;
+    for (const auto& r : records) {
+        if (r.type == RecordType::EXPENSE) {
+            std::string mainCat = r.category;
+            size_t p = mainCat.find('(');
+            if (p != std::string::npos) mainCat = mainCat.substr(0, p);
+            expenseByCat[mainCat] += r.amount;
+            totalExp += r.amount;
+        }
+    }
+    m_budgetMan.updateSpent(month, expenseByCat, totalExp);
+
+    // 同步储蓄目标进度
+    m_goalMan.updateProgress(m_ledger.getBalance());
+
     m_dashboardPage->refresh();
     m_flowPage->refresh();
     m_statisticsPage->refresh();
     m_categoryPage->refresh();
     m_otherPage->refresh();
+    refreshBudgetPage();
     updateStatusBar();
+}
+
+/*
+ * ===========================================================================
+ * 方法：createBudgetPage
+ * ---------------------------------------------------------------------------
+ * 功能描述：
+ *     创建预算管理页面的全部UI。页面包含：
+ *       1. 月份选择器
+ *       2. 总预算设置区域
+ *       3. 分类预算列表（含进度条）
+ *       4. 添加分类预算按钮
+ * ===========================================================================
+ */
+QWidget* MainWindow::createBudgetPage()
+{
+    QWidget *page = new QWidget;
+    page->setStyleSheet("background: #F5F7FA;");
+    QVBoxLayout *mainLayout = new QVBoxLayout(page);
+    mainLayout->setContentsMargins(32, 24, 32, 24);
+    mainLayout->setSpacing(16);
+
+    // 标题
+    QLabel *title = new QLabel("预算管理");
+    title->setStyleSheet("font-size: 22px; font-weight: bold; color: #2C3E50; "
+                          "background: transparent; padding: 0 0 8px 0;");
+    mainLayout->addWidget(title);
+
+    // 月份选择行
+    QHBoxLayout *monthRow = new QHBoxLayout;
+    QLabel *monthLabel = new QLabel("预算月份：");
+    monthLabel->setStyleSheet("font-size: 14px; background: transparent;");
+    m_budgetMonthCombo = new QComboBox;
+    m_budgetMonthCombo->setFixedWidth(160);
+    QDate today = QDate::currentDate();
+    for (int i = -3; i <= 3; i++) {
+        QDate d = today.addMonths(i);
+        m_budgetMonthCombo->addItem(d.toString("yyyy-MM"), d.toString("yyyy-MM"));
+    }
+    m_budgetMonthCombo->setCurrentIndex(3); // 默认当月
+    monthRow->addWidget(monthLabel);
+    monthRow->addWidget(m_budgetMonthCombo);
+    monthRow->addStretch();
+
+    // 总预算设置行
+    QLabel *overallLabel = new QLabel("总预算：¥");
+    overallLabel->setStyleSheet("font-size: 14px; background: transparent;");
+    QDoubleSpinBox *overallInput = new QDoubleSpinBox;
+    overallInput->setObjectName("overallInput");
+    overallInput->setRange(0, 99999999.99);
+    overallInput->setDecimals(2);
+    overallInput->setFixedWidth(180);
+    overallInput->setStyleSheet("font-size: 13px;");
+
+    QPushButton *saveOverallBtn = new QPushButton("保存总预算");
+    saveOverallBtn->setFixedWidth(120);
+
+    monthRow->addWidget(overallLabel);
+    monthRow->addWidget(overallInput);
+    monthRow->addWidget(saveOverallBtn);
+    monthRow->addStretch();
+    mainLayout->addLayout(monthRow);
+
+    // 分类预算列表区域（滚动区域）
+    QScrollArea *scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    m_budgetListContainer = new QWidget;
+    m_budgetListContainer->setStyleSheet("background: transparent;");
+    QVBoxLayout *listLayout = new QVBoxLayout(m_budgetListContainer);
+    listLayout->setContentsMargins(0, 0, 0, 0);
+    listLayout->setSpacing(8);
+    listLayout->addStretch();
+    scroll->setWidget(m_budgetListContainer);
+    mainLayout->addWidget(scroll, 1);
+
+    // 底部分类预算添加行
+    QHBoxLayout *addRow = new QHBoxLayout;
+    QLabel *addLabel = new QLabel("添加分类预算：");
+    addLabel->setStyleSheet("font-size: 13px; background: transparent;");
+
+    QComboBox *catCombo = new QComboBox;
+    catCombo->setObjectName("catCombo");
+    catCombo->setMinimumWidth(130);
+    // 收入支出分类都添加
+    auto expCats = m_catMan.getCategories(RecordType::EXPENSE);
+    for (const auto& c : expCats) {
+        catCombo->addItem(QString::fromStdString(c), QString::fromStdString(c));
+    }
+
+    QDoubleSpinBox *catInput = new QDoubleSpinBox;
+    catInput->setObjectName("catInput");
+    catInput->setRange(0, 99999999.99);
+    catInput->setDecimals(2);
+    catInput->setFixedWidth(160);
+    catInput->setPrefix("¥");
+
+    QPushButton *addCatBtn = new QPushButton("添加");
+    addCatBtn->setFixedWidth(80);
+
+    addRow->addWidget(addLabel);
+    addRow->addWidget(catCombo);
+    addRow->addWidget(catInput);
+    addRow->addWidget(addCatBtn);
+    addRow->addStretch();
+    mainLayout->addLayout(addRow);
+
+    // ==== 信号连接 ====
+    // 保存总预算
+    connect(saveOverallBtn, &QPushButton::clicked, this, [this, overallInput]() {
+        QComboBox *combo = m_budgetMonthCombo;
+        Q_UNUSED(combo);
+        QString month = m_budgetMonthCombo->currentData().toString();
+        double amount = overallInput->value();
+        if (amount > 0) {
+            m_budgetMan.setBudget(month.toStdString(), "OVERALL", amount);
+            refreshBudgetPage();
+            updateStatusBar();
+        }
+    });
+
+    // 添加分类预算
+    connect(addCatBtn, &QPushButton::clicked, this, [this, catCombo, catInput]() {
+        QString month = m_budgetMonthCombo->currentData().toString();
+        QString cat = catCombo->currentData().toString();
+        double amount = catInput->value();
+        if (amount > 0 && !cat.isEmpty()) {
+            m_budgetMan.setBudget(month.toStdString(), cat.toStdString(), amount);
+            catInput->setValue(0);
+            refreshBudgetPage();
+        }
+    });
+
+    // 月份变化时刷新
+    connect(m_budgetMonthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this]() { refreshBudgetPage(); });
+
+    return page;
+}
+
+/*
+ * ===========================================================================
+ * 方法：refreshBudgetPage
+ * ---------------------------------------------------------------------------
+ * 功能描述：
+ *     刷新预算管理页面的数据显示。根据当前选中的月份，
+ *     加载对应的预算记录并更新进度条。
+ * ===========================================================================
+ */
+void MainWindow::refreshBudgetPage()
+{
+    if (!m_budgetMonthCombo || !m_budgetListContainer) return;
+
+    QString month = m_budgetMonthCombo->currentData().toString();
+    std::string monthStr = month.toStdString();
+
+    // 同步已花费数据
+    QDate qmonth = QDate::fromString(month + "-01", "yyyy-MM-dd");
+    QDate endDate = qmonth.addMonths(1).addDays(-1);
+    QDate today = QDate::currentDate();
+    if (endDate > today) endDate = today;
+
+    auto records = m_ledger.getRecordsByDateRange(
+        (month + "-01").toStdString(), endDate.toString("yyyy-MM-dd").toStdString());
+    std::map<std::string, double> expenseByCat;
+    double totalExp = 0.0;
+    for (const auto& r : records) {
+        if (r.type == RecordType::EXPENSE) {
+            std::string mainCat = r.category;
+            size_t p = mainCat.find('(');
+            if (p != std::string::npos) mainCat = mainCat.substr(0, p);
+            expenseByCat[mainCat] += r.amount;
+            totalExp += r.amount;
+        }
+    }
+    m_budgetMan.updateSpent(monthStr, expenseByCat, totalExp);
+
+    // 更新总预算输入框
+    QDoubleSpinBox *overallInput = m_budgetPage->findChild<QDoubleSpinBox*>("overallInput");
+    if (overallInput) {
+        Budget overallB = m_budgetMan.getBudget(monthStr, "OVERALL");
+        overallInput->setValue(overallB.amount);
+    }
+
+    // 清空并重建分类预算列表
+    QVBoxLayout *listLayout = qobject_cast<QVBoxLayout*>(m_budgetListContainer->layout());
+    if (!listLayout) return;
+
+    // 移除旧控件（保留最后的stretch）
+    while (listLayout->count() > 1) {
+        QLayoutItem *item = listLayout->takeAt(0);
+        if (item->widget()) delete item->widget();
+        delete item;
+    }
+
+    auto budgets = m_budgetMan.getMonthBudgets(monthStr);
+
+    for (const auto& b : budgets) {
+        if (b.category == "OVERALL") continue; // 总预算在顶部单独显示
+
+        QWidget *row = new QWidget;
+        row->setStyleSheet("background: white; border-radius: 8px;");
+        QHBoxLayout *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(16, 10, 16, 10);
+        rowLayout->setSpacing(12);
+
+        // 分类名
+        QLabel *catLabel = new QLabel(QString::fromStdString(b.category));
+        catLabel->setFixedWidth(80);
+        catLabel->setStyleSheet("font-size: 13px; font-weight: bold; background: transparent;");
+
+        // 进度条容器
+        QWidget *barBg = new QWidget;
+        barBg->setFixedHeight(20);
+        barBg->setStyleSheet("background: #ECF0F1; border-radius: 10px; border: none;");
+        QHBoxLayout *barBgLayout = new QHBoxLayout(barBg);
+        barBgLayout->setContentsMargins(0, 0, 0, 0);
+
+        double pct = b.percentage();
+        QString barColor = (pct >= 100) ? "#E74C3C" : (pct >= 80) ? "#F39C12" : "#27AE60";
+        QWidget *barFill = new QWidget;
+        barFill->setFixedHeight(20);
+        barFill->setStyleSheet(QString("background: %1; border-radius: 10px; border: none;").arg(barColor));
+        barBgLayout->addWidget(barFill, (int)(pct > 100 ? 100 : pct));
+        barBgLayout->addStretch(100 - (int)(pct > 100 ? 100 : pct));
+
+        // 金额信息
+        QString infoText = QString("¥%1 / ¥%2  (%3%)")
+                               .arg(b.spent, 0, 'f', 0)
+                               .arg(b.amount, 0, 'f', 0)
+                               .arg(pct, 0, 'f', 0);
+        QLabel *infoLabel = new QLabel(infoText);
+        infoLabel->setFixedWidth(180);
+        infoLabel->setStyleSheet("font-size: 12px; color: #7F8C8D; background: transparent;");
+
+        // 删除按钮
+        QPushButton *delBtn = new QPushButton("删除");
+        delBtn->setFixedWidth(60);
+        delBtn->setStyleSheet(
+            "QPushButton { background: #E74C3C; color: white; border-radius: 4px; "
+            "padding: 4px 10px; font-size: 11px; }"
+            "QPushButton:hover { background: #C0392B; }");
+
+        std::string bMonth = b.month;
+        std::string bCat = b.category;
+        connect(delBtn, &QPushButton::clicked, this, [this, bMonth, bCat]() {
+            m_budgetMan.deleteBudget(bMonth, bCat);
+            refreshBudgetPage();
+        });
+
+        rowLayout->addWidget(catLabel);
+        rowLayout->addWidget(barBg, 1);
+        rowLayout->addWidget(infoLabel);
+        rowLayout->addWidget(delBtn);
+
+        // 插入到stretch之前
+        listLayout->insertWidget(listLayout->count() - 1, row);
+    }
+
+    if (budgets.empty()) {
+        QLabel *empty = new QLabel("暂无分类预算，请在上方添加");
+        empty->setStyleSheet("color: #95A5A6; font-size: 13px; padding: 20px; "
+                              "background: transparent;");
+        empty->setAlignment(Qt::AlignCenter);
+        listLayout->insertWidget(listLayout->count() - 1, empty);
+    }
 }
