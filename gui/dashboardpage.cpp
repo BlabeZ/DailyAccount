@@ -41,7 +41,13 @@
 #include <QProgressBar>
 #include <QHeaderView>
 #include <QScrollArea>
-#include <ctime>
+#include <QDate>
+#include <QColor>
+#include <QLayoutItem>
+#include <QSize>
+#include <QStringList>
+#include <QTableWidgetItem>
+#include <algorithm>
 
 /*
  * ===========================================================================
@@ -70,7 +76,8 @@
  *     4. 调用 setupUI() 搭建所有界面控件
  * ===========================================================================
  */
-DashboardPage::DashboardPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
+DashboardPage::DashboardPage(Ledger& ledger, const CategoryManager& catMan,
+                             QWidget *parent)
     : QWidget(parent), m_ledger(ledger), m_catMan(catMan)
 {
     setupUI();  // 构建页面上的所有界面元素（标题、卡片、表格、分布图）
@@ -484,14 +491,25 @@ void DashboardPage::refresh()
 void DashboardPage::refreshSummary()
 {
     /*
-     * 步骤 1：从账本获取最新的汇总数据
-     * getTotalIncome()  —— 获取所有流水中类型为"收入"的金额总和
-     * getTotalExpense() —— 获取所有流水中类型为"支出"的金额总和
-     * getBalance()      —— 获取总收入减去总支出的结余金额
+     * 步骤 1：获取本月流水并计算收入、支出和结余
      */
-    double income  = m_ledger.getTotalIncome();
-    double expense = m_ledger.getTotalExpense();
-    double balance = m_ledger.getBalance();
+    const QDate today = QDate::currentDate();
+    const QDate firstDay(today.year(), today.month(), 1);
+    const QDate lastDay(today.year(), today.month(), today.daysInMonth());
+    const auto records = m_ledger.getRecordsByDateRange(
+        firstDay.toString("yyyy-MM-dd").toStdString(),
+        lastDay.toString("yyyy-MM-dd").toStdString());
+
+    Money income = 0;
+    Money expense = 0;
+    for (const auto& record : records) {
+        if (record.type == RecordType::INCOME) {
+            income += record.amountCents;
+        } else {
+            expense += record.amountCents;
+        }
+    }
+    const Money balance = income - expense;
 
     /*
      * 步骤 2：定义生成卡片 HTML 的 lambda 函数
@@ -535,7 +553,8 @@ void DashboardPage::refreshSummary()
      *     参数说明：0=不限制字段宽度，'f'=浮点数格式，2=保留两位小数
      */
     m_cardIncome->setText(
-        cardStyle("", "本月收入", QString("+%1").arg(income, 0, 'f', 2), "#27AE60"));
+        cardStyle("", "本月收入",
+                  "+" + QString::fromStdString(formatMoney(income)), "#27AE60"));
 
     /*
      * 支出卡片（m_cardExpense）：
@@ -545,7 +564,8 @@ void DashboardPage::refreshSummary()
      *   - 颜色：#E74C3C（红色）—— 红色代表支出、需要注意
      */
     m_cardExpense->setText(
-        cardStyle("", "本月支出", QString("-%1").arg(expense, 0, 'f', 2), "#E74C3C"));
+        cardStyle("", "本月支出",
+                  "-" + QString::fromStdString(formatMoney(expense)), "#E74C3C"));
 
     /*
      * 结余卡片（m_cardBalance）：
@@ -566,8 +586,8 @@ void DashboardPage::refreshSummary()
      */
     m_cardBalance->setText(
         cardStyle("", "本月结余",
-                  QString("%1%2").arg(balance >= 0 ? "+" : "")
-                                   .arg(balance, 0, 'f', 2),
+                  QString(balance >= 0 ? "+" : "") +
+                      QString::fromStdString(formatMoney(balance)),
                   balance >= 0 ? "#3498DB" : "#E74C3C"));
 
     /*
@@ -588,7 +608,7 @@ void DashboardPage::refreshSummary()
  * ---------------------------------------------------------------------------
  * 功能描述：
  *     刷新"最近流水记录"表格中的数据。从账本中读取全部流水记录，
- *     按 ID 降序排列（ID 越大表示记录越新），取最近 10 条显示在表格中。
+ *     按日期和 ID 降序排列，取最近 10 条显示在表格中。
  *
  *     表格中每行根据记录类型使用不同颜色：
  *       - 收入行：类别和金额显示为绿色（#27AE60）
@@ -609,7 +629,7 @@ void DashboardPage::refreshSummary()
  *     1. 从账本获取全部流水记录
  *     2. 确定需要显示的行数（最多 10 行）
  *     3. 设置表格行数
- *     4. 从后往前遍历记录列表（实现降序），填充表格各行
+ *     4. 从排序结果开头依次填充表格各行
  *     5. 调用 resizeColumnsToContents() 自动调整列宽
  * ===========================================================================
  */
@@ -617,10 +637,15 @@ void DashboardPage::refreshRecentRecords()
 {
     /*
      * 步骤 1：获取全部流水记录
-     * getAllRecords() 返回一个 const 引用到流水记录列表（vector<Record>）。
+     * getAllRecords() 返回流水记录快照（vector<Record>）。
      * 列表中的记录按添加顺序排列（ID 递增，先添加的记录在前面）。
      */
-    const auto& all = m_ledger.getAllRecords();
+    std::vector<Record> all = m_ledger.getAllRecords();
+    std::sort(all.begin(), all.end(),
+        [](const Record& left, const Record& right) {
+            if (left.date != right.date) return left.date > right.date;
+            return left.id > right.id;
+        });
 
     /*
      * 步骤 2：计算需要显示的行数
@@ -635,20 +660,11 @@ void DashboardPage::refreshRecentRecords()
     m_recentTable->setRowCount(count);
 
     /*
-     * 步骤 4：按 ID 降序填充表格（从最新到最旧）
-     *
-     * 遍历方式：从列表末尾向前遍历
-     *   all[all.size() - 1 - i] 的含义：
-     *     - all.size() - 1：列表中最后一个元素的索引（最新的记录）
-     *     - - i：每循环一次向前移动一位
-     *   例如，i=0 时取最后一条（最新），i=1 时取倒数第二条，依此类推。
-     *
-     * 这种"倒序遍历"避免了创建临时列表或排序的开销，
-     * 因为原列表本身就是按时间顺序（旧→新）排列的。
+     * 步骤 4：按日期和 ID 降序填充表格（从最新到最旧）
      */
     for (int i = 0; i < count; i++) {
         // 获取当前要显示的这条流水记录的引用
-        const auto& t = all[all.size() - 1 - i];
+        const auto& t = all[i];
 
         /*
          * 定义一个局部 lambda 函数 setItem，用于创建并设置表格单元格
@@ -680,14 +696,14 @@ void DashboardPage::refreshRecentRecords()
 
         // 列 2：金额 —— 收入前加"+"号，支出前加"-"号
         // 颜色同样根据类型选择绿色或红色
-        // t.amount 是 double 类型，格式化为保留两位小数的字符串
+        // 金额在后端以分保存，此处仅格式化为两位小数字符串
         QString amt = QString(isIncome ? "+%1" : "-%1")
-                          .arg(t.amount, 0, 'f', 2);
+                          .arg(QString::fromStdString(formatMoney(t.amountCents)));
         setItem(2, amt, isIncome ? "#27AE60" : "#E74C3C");
 
         // 列 3：分类名称 —— 使用默认深色（#2C3E50）
         // t.category 是 std::string 类型
-        setItem(3, QString::fromStdString(t.category));
+        setItem(3, QString::fromStdString(t.displayCategory()));
 
         // 列 4：备注 —— 使用浅灰色（#95A5A6），降低视觉权重
         // t.note 是 std::string 类型
@@ -766,17 +782,24 @@ void DashboardPage::refreshCategoryBreakdown()
     /*
      * 步骤 2：从账本获取支出分类统计数据
      *
-     * getCategorySummaries(RecordType::EXPENSE) 返回：
+     * 按本月日期范围查询支出分类统计，返回：
      *   一个 vector<CategorySummary>，其中每个元素包含：
      *     - category：分类名称（如"餐饮"、"交通"、"购物"）
      *     - amount：该分类的支出总金额
      *     - percentage：该分类占总支出的百分比
      *   列表按支出金额从高到低（降序）排列。
      *
-     * getTotalExpense() 返回：所有流水中支出类型的金额总和
+     * 分类汇总金额之和作为本月总支出
      */
-    auto stats = m_ledger.getCategorySummaries(RecordType::EXPENSE);
-    double totalExpense = m_ledger.getTotalExpense();
+    const QDate today = QDate::currentDate();
+    const QDate firstDay(today.year(), today.month(), 1);
+    const QDate lastDay(today.year(), today.month(), today.daysInMonth());
+    auto stats = m_ledger.getCategorySummaries(
+        RecordType::EXPENSE,
+        firstDay.toString("yyyy-MM-dd").toStdString(),
+        lastDay.toString("yyyy-MM-dd").toStdString());
+    Money totalExpense = 0;
+    for (const auto& summary : stats) totalExpense += summary.totalAmount;
 
     /*
      * 步骤 3：处理空数据状态
@@ -836,7 +859,10 @@ void DashboardPage::refreshCategoryBreakdown()
         double pct = cs.percentage;  // 该分类占总支出的百分比
 
         // 创建一个水平布局，作为当前分类的行容器
-        QHBoxLayout *row = new QHBoxLayout;
+        QWidget *rowWidget = new QWidget(m_categoryBreakdown);
+        rowWidget->setStyleSheet("background: transparent;");
+        QHBoxLayout *row = new QHBoxLayout(rowWidget);
+        row->setContentsMargins(0, 0, 0, 0);
         row->setSpacing(8);  // 分类名、进度条、百分比之间的间距为 8 像素
 
         /*
@@ -910,6 +936,6 @@ void DashboardPage::refreshCategoryBreakdown()
         row->addWidget(pctLabel);    // 百分比数字（固定 40px 宽）
 
         // 将整行添加到分类分布容器的布局中
-        layout->addLayout(row);
+        layout->addWidget(rowWidget);
     }
 }

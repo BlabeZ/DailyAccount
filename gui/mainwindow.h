@@ -36,7 +36,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(Ledger& ledger, CategoryManager& catMan, QWidget *parent = nullptr);
+    explicit MainWindow(Ledger& ledger, QWidget *parent = nullptr);
     ~MainWindow();
 
     void refreshAll();
@@ -52,7 +52,7 @@ private:
     void setNavButtonActive(int index);
 
     Ledger& m_ledger;
-    CategoryManager& m_catMan;
+    const CategoryManager& m_catMan;
 
     QStackedWidget *m_stackedWidget;
     DashboardPage   *m_dashboardPage;    // 索引 0: 概览

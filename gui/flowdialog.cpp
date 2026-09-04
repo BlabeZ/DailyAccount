@@ -35,28 +35,23 @@
 // ============================================================================
 // 构  造  函  数  ——  添  加  模  式
 // ============================================================================
-FlowDialog::FlowDialog(CategoryManager& catMan, QWidget *parent)
+FlowDialog::FlowDialog(const CategoryManager& catMan, QWidget *parent)
     : QDialog(parent)
-    , m_catMan(catMan)
+    , m_categoryManager(catMan)
     , m_editId(-1)
 {
     setWindowTitle(" 添加记录");
     setupUI();
-    setRecord(Record{});
-    m_categoryCombo->setCurrentIndex(-1);
-    m_subCategoryCombo->setVisible(false);
-    m_subCategoryLabel->setVisible(false);
-    m_amountSpin->setValue(0.00);
 }
 
 
 // ============================================================================
 // 构  造  函  数  ——  编  辑  模  式
 // ============================================================================
-FlowDialog::FlowDialog(CategoryManager& catMan, const Record& existing,
+FlowDialog::FlowDialog(const CategoryManager& catMan, const Record& existing,
                                      QWidget *parent)
     : QDialog(parent)
-    , m_catMan(catMan)
+    , m_categoryManager(catMan)
     , m_editId(existing.id)
 {
     setWindowTitle(" 修改记录");
@@ -89,6 +84,8 @@ void FlowDialog::setupUI()
 
     // 日期字段：增减箭头 + 日历按钮
     m_dateEdit = new QDateEdit(QDate::currentDate());
+    m_dateEdit->setDateRange(QDate(kMinimumRecordYear, 1, 1),
+                             QDate(kMaximumRecordYear, 12, 31));
     m_dateEdit->setCalendarPopup(false);
     m_dateEdit->setDisplayFormat("yyyy-MM-dd");
     m_dateEdit->setMinimumWidth(200);
@@ -110,6 +107,8 @@ void FlowDialog::setupUI()
         calDlg.setWindowTitle("选择日期");
         QVBoxLayout *calLayout = new QVBoxLayout(&calDlg);
         QCalendarWidget *cal = new QCalendarWidget;
+        cal->setDateRange(QDate(kMinimumRecordYear, 1, 1),
+                          QDate(kMaximumRecordYear, 12, 31));
         cal->setSelectedDate(d);
         calLayout->addWidget(cal);
         QHBoxLayout *calBtns = new QHBoxLayout;
@@ -142,13 +141,13 @@ void FlowDialog::setupUI()
     typeLayout->addStretch();
     form->addRow("类型:", typeLayout);
 
-    connect(m_radioExpense, &QRadioButton::toggled, this, &FlowDialog::onTypeChanged);
-    connect(m_radioIncome,  &QRadioButton::toggled, this, &FlowDialog::onTypeChanged);
+    connect(m_radioIncome, &QRadioButton::toggled,
+            this, &FlowDialog::onTypeChanged);
 
     // 金额字段（0.00时显示为空白）
     m_amountSpin = new QDoubleSpinBox;
     m_amountSpin->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    m_amountSpin->setRange(0.00, 99999999.99);
+    m_amountSpin->setRange(0.00, moneyToDouble(kMaxRecordAmountCents));
     m_amountSpin->setDecimals(2);
     m_amountSpin->setPrefix("");
     m_amountSpin->setSpecialValueText(" ");
@@ -238,17 +237,22 @@ void FlowDialog::updateSubCategory()
 {
     QString cat = m_categoryCombo->currentText();
     m_subCategoryCombo->clear();
-    bool hasSub = (cat == "饮食");
+    QStringList items;
+    if (cat == "饮食") {
+        m_subCategoryLabel->setText("饮食类型:");
+        items = {"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"};
+    } else if (cat == "交通") {
+        m_subCategoryLabel->setText("交通类型:");
+        items = {"公交", "地铁", "打车", "共享单车", "火车", "飞机", "其他"};
+    }
+    const bool hasSub = !items.isEmpty();
     m_subCategoryCombo->setVisible(hasSub);
     m_subCategoryLabel->setVisible(hasSub);
     if (hasSub) {
-        m_subCategoryCombo->addItems({"早饭", "午饭", "晚饭", "夜宵", "小吃", "聚餐", "其他"});
-        m_subCategoryCombo->setCurrentIndex(-1);  // 不自动选中，由setRecord或用户选择
+        m_subCategoryCombo->addItems(items);
+        m_subCategoryCombo->setCurrentIndex(-1);
     }
 }
-
-// 保留旧名称兼容
-void FlowDialog::onCategoryChanged(int) { updateSubCategory(); }
 
 
 // ============================================================================
@@ -257,10 +261,12 @@ void FlowDialog::onCategoryChanged(int) { updateSubCategory(); }
 void FlowDialog::populateCategories(RecordType type)
 {
     m_categoryCombo->clear();
-    auto cats = m_catMan.getCategories(type);
+    auto cats = m_categoryManager.getCategories(type);
     for (const auto& c : cats) {
         m_categoryCombo->addItem(QString::fromStdString(c));
     }
+    m_categoryCombo->setCurrentIndex(-1);
+    updateSubCategory();
 }
 
 
@@ -282,23 +288,29 @@ void FlowDialog::setRecord(const Record& t)
 
     populateCategories(t.type);
 
-    m_amountSpin->setValue(t.amount > 0 ? t.amount : 0.01);
+    m_amountSpin->setValue(t.amountCents > 0
+        ? moneyToDouble(t.amountCents)
+        : 0.0);
 
-    // 解析组合分类"饮食(午饭)" → 主分类+子分类
-    QString catStr = QString::fromStdString(t.category);
-    int parenPos = catStr.indexOf('(');
-    if (parenPos > 0) {
-        QString mainCat = catStr.left(parenPos);
-        QString subCat = catStr.mid(parenPos + 1).chopped(1);
-        int idx = m_categoryCombo->findText(mainCat);
-        if (idx >= 0) m_categoryCombo->setCurrentIndex(idx);
-        updateSubCategory();  // 确保子分类已填充
-        int subIdx = m_subCategoryCombo->findText(subCat);
-        if (subIdx >= 0) m_subCategoryCombo->setCurrentIndex(subIdx);
-    } else if (!catStr.isEmpty()) {
-        int idx2 = m_categoryCombo->findText(catStr);
-        if (idx2 >= 0) m_categoryCombo->setCurrentIndex(idx2);
+    const QString category = QString::fromStdString(t.category);
+    const int categoryIndex = m_categoryCombo->findText(category);
+    if (categoryIndex >= 0) {
+        m_categoryCombo->setCurrentIndex(categoryIndex);
         updateSubCategory();
+        if (!t.subcategory.empty()) {
+            const QString subcategory = QString::fromStdString(t.subcategory);
+            if (m_subCategoryCombo->isHidden()) {
+                m_subCategoryLabel->setText("子分类:");
+                m_subCategoryLabel->show();
+                m_subCategoryCombo->show();
+            }
+            int subcategoryIndex = m_subCategoryCombo->findText(subcategory);
+            if (subcategoryIndex < 0) {
+                m_subCategoryCombo->addItem(subcategory);
+                subcategoryIndex = m_subCategoryCombo->count() - 1;
+            }
+            m_subCategoryCombo->setCurrentIndex(subcategoryIndex);
+        }
     }
 
     m_noteEdit->setText(QString::fromStdString(t.note));
@@ -314,13 +326,12 @@ Record FlowDialog::getRecord() const
     t.id = m_editId;
     t.date = m_dateEdit->date().toString("yyyy-MM-dd").toStdString();
     t.type = m_radioIncome->isChecked() ? RecordType::INCOME : RecordType::EXPENSE;
-    t.amount = m_amountSpin->value();
-    // 组合分类：如有子分类且用户已选择则格式为"主分类(子分类)"
-    QString cat = m_categoryCombo->currentText();
-    if (cat == "饮食" && m_subCategoryCombo->currentIndex() >= 0) {
-        cat += "(" + m_subCategoryCombo->currentText() + ")";
+    moneyFromDouble(m_amountSpin->value(), t.amountCents);
+    t.category = m_categoryCombo->currentText().toStdString();
+    if (!m_subCategoryCombo->isHidden() &&
+        m_subCategoryCombo->currentIndex() >= 0) {
+        t.subcategory = m_subCategoryCombo->currentText().toStdString();
     }
-    t.category = cat.toStdString();
     t.note = m_noteEdit->text().toStdString();
     return t;
 }
@@ -331,7 +342,8 @@ Record FlowDialog::getRecord() const
 // ============================================================================
 void FlowDialog::onAccept()
 {
-    if (m_amountSpin->value() <= 0) {
+    Money amount = 0;
+    if (!moneyFromDouble(m_amountSpin->value(), amount) || amount <= 0) {
         QMessageBox::warning(this, "输入错误",
                              "请输入有效的金额（大于0）。");
         m_amountSpin->setFocus();

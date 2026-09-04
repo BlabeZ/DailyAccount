@@ -1,6 +1,8 @@
 # Build outputs
 release/
 debug/
+build/out/
+build/dist/
 *.o
 *.obj
 *.exe
@@ -19,4 +21,4 @@ data/
 .idea/
 *.user
 *.pro.user*
-ui_flowpage.h
+ui_*.h

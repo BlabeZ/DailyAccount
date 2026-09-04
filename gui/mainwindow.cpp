@@ -11,7 +11,7 @@
  *     主窗口的布局分为三个主要区域：
  *     1. 左侧边栏（Sidebar）—— 包含应用标题、导航按钮和退出按钮
  *     2. 右侧内容区 —— 使用 QStackedWidget 实现多页面堆叠切换
- *        包含四个子页面：概览、账目、统计、分类
+ *        包含五个子页面：概览、账目、统计、分类、其他
  *     3. 底部状态栏（StatusBar）—— 实时显示总收入、总支出和结余
  *
  *     本文件包含以下核心方法的实现：
@@ -25,7 +25,7 @@
  *
  * 依赖关系：
  *     本文件依赖于 DashboardPage、FlowPage、StatisticsPage、
- *     CategoryPage 四个页面组件，以及 Ledger 数据管理类。
+ *     CategoryPage、OtherPage 五个页面组件，以及 Ledger 数据管理类。
  * ===========================================================================
  */
 
@@ -39,20 +39,20 @@
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QApplication>
+#include <QStyle>
 
 /*
  * ===========================================================================
  * 构造函数：MainWindow
  * ---------------------------------------------------------------------------
  * 功能描述：
- *     初始化主窗口对象。接收外部传入的账本数据和分类管理器引用，
- *     存储为成员变量，然后依次调用 setupUI() 构建界面、
+ *     初始化主窗口对象。接收账本引用并取得其分类只读视图，
+ *     然后依次调用 setupUI() 构建界面、
  *     设置默认选中第一个导航按钮、更新状态栏数据。
  * ---------------------------------------------------------------------------
  * 参数说明：
  *     ledger  - 账本对象（Ledger）的引用，提供所有流水数据的访问接口。
  *               主窗口不拥有该对象，仅持有引用。
- *     catMan  - 分类管理器（CategoryManager）的引用，提供分类信息的访问。
  *     parent  - Qt 父子对象体系中的父级控件指针，默认为 nullptr，
  *               表示该窗口为顶层窗口。
  * ---------------------------------------------------------------------------
@@ -64,12 +64,12 @@
  *     5. 调用 updateStatusBar() 初始化状态栏显示的金额
  * ===========================================================================
  */
-MainWindow::MainWindow(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
-    : QMainWindow(parent), m_ledger(ledger), m_catMan(catMan)
+MainWindow::MainWindow(Ledger& ledger, QWidget *parent)
+    : QMainWindow(parent), m_ledger(ledger), m_catMan(ledger.categories())
 {
     setupUI();                // 搭建主窗口的全部界面结构
     setNavButtonActive(0);    // 默认选中侧边栏的第一个导航按钮（概览）
-    updateStatusBar();        // 初始化底部状态栏的金额显示
+    refreshAll();             // 首次显示前填充所有页面和状态栏
 }
 
 /*
@@ -124,7 +124,7 @@ MainWindow::~MainWindow() {}
  *     2. 创建中心控件（centralWidget），作为一切界面元素的父容器
  *     3. 创建水平主布局（QHBoxLayout），将窗口分为左右两部分
  *     4. 构建左侧边栏：应用标题 → 分隔线 → 导航按钮 → 弹性空间 → 退出按钮
- *     5. 构建右侧内容区：QStackedWidget 中依次添加四个功能页面
+ *     5. 构建右侧内容区：QStackedWidget 中依次添加五个功能页面
  *     6. 调用 setupStatusBar() 构建底部状态栏
  * ===========================================================================
  */
@@ -167,7 +167,7 @@ void MainWindow::setupUI()
      * 侧边栏内部从上到下的布局顺序：
      *   ① 应用标题（" 日常记账"）
      *   ② 水平分隔线
-     *   ③ 四个导航按钮（概览、账目、统计、分类）
+     *   ③ 五个导航按钮（概览、账目、统计、分类、其他）
      *   ④ 弹性伸展空间（将退出按钮推到底部）
      *   ⑤ 退出程序按钮
      *
@@ -198,7 +198,7 @@ void MainWindow::setupUI()
     sideLayout->addWidget(line1);
     sideLayout->addSpacing(10);  // 分隔线下方留 10 像素的额外空白
 
-    // ③ 调用 setupSidebar() 创建四个导航按钮
+    // ③ 调用 setupSidebar() 创建五个导航按钮
     setupSidebar(sideLayout);
 
     // ④ 弹性空间
@@ -232,22 +232,30 @@ void MainWindow::setupUI()
      * 这种设计类似于"标签页"（Tab）的概念，但切换由我们自己编写导航按钮
      * 来控制，而不是使用 Qt 内置的 QTabWidget。
      *
-     * 四个页面按如下顺序添加：
+     * 五个页面按如下顺序添加：
      *   索引 0 → 概览页（DashboardPage）
      *   索引 1 → 账目页（FlowPage）
      *   索引 2 → 统计页（StatisticsPage）
      *   索引 3 → 分类页（CategoryPage）
+     *   索引 4 → 其他功能页（OtherPage）
      */
     m_stackedWidget = new QStackedWidget;
     m_stackedWidget->setStyleSheet("background-color: #F5F7FA;");  // 浅灰蓝色背景
 
-    // 创建四个功能页面实例
+    // 创建五个功能页面实例
     // 每个页面都接收账本（m_ledger）和分类管理器（m_catMan）的引用
     m_dashboardPage    = new DashboardPage(m_ledger, m_catMan);
     m_flowPage  = new FlowPage(m_ledger, m_catMan);
     m_statisticsPage   = new StatisticsPage(m_ledger, m_catMan);
     m_categoryPage     = new CategoryPage(m_ledger, m_catMan);
     m_otherPage        = new OtherPage(m_ledger);
+
+    connect(m_flowPage, &FlowPage::dataChanged,
+            this, &MainWindow::refreshAll);
+    connect(m_categoryPage, &CategoryPage::dataChanged,
+            this, &MainWindow::refreshAll);
+    connect(m_otherPage, &OtherPage::dataChanged,
+            this, &MainWindow::refreshAll);
 
     // 将页面按固定顺序添加到堆叠容器中
     // 索引 0：概览页 —— 显示汇总卡片、最近流水、分类分布
@@ -300,7 +308,7 @@ void MainWindow::setupUI()
  * ---------------------------------------------------------------------------
  * 执行步骤：
  *     1. 定义导航项结构体 NavItem，包含按钮显示的文本和图标
- *     2. 创建一个包含四个导航项（概览、账目、统计、分类）的列表
+ *     2. 创建五个导航项（概览、账目、统计、分类、其他）
  *     3. 在循环中为每个导航项：
  *        - 创建一个 QPushButton 并设置显示文本
  *        - 设置鼠标悬停时变为手型光标
@@ -322,7 +330,7 @@ void MainWindow::setupSidebar(QVBoxLayout *sideLayout)
     };
 
     /*
-     * 定义四个导航项
+     * 定义五个导航项
      * 每个导航项的文字中已经包含了图标 emoji 和中文名称
      * 这些文本将直接作为按钮的显示标签
      */
@@ -446,7 +454,7 @@ void MainWindow::setupStatusBar()
  *       3. 调用目标页面的 refresh() 方法刷新数据
  * ---------------------------------------------------------------------------
  * 参数说明：
- *     index - 目标页面的索引（整数，取值范围 0~3）
+ *     index - 目标页面的索引（整数，取值范围 0~4）
  *             0 = 概览页（DashboardPage）
  *             1 = 账目页（FlowPage）
  *             2 = 统计页（StatisticsPage）
@@ -479,7 +487,9 @@ void MainWindow::switchToPage(int index)
     case 2: m_statisticsPage->refresh();  break;  // 刷新统计页：更新图表和统计数据
     case 3: m_categoryPage->refresh();    break;  // 刷新分类页：更新分类列表
     case 4: m_otherPage->refresh();       break;  // 刷新其他功能页
+    default: break;
     }
+    updateStatusBar();
 }
 
 /*
@@ -496,7 +506,7 @@ void MainWindow::switchToPage(int index)
  *     需要手动调用 unpolish() 和 polish() 强制刷新样式。
  * ---------------------------------------------------------------------------
  * 参数说明：
- *     index - 需要设为活跃的按钮索引（0~3），其余按钮将被设为非活跃
+ *     index - 需要设为活跃的按钮索引（0~4），其余按钮将被设为非活跃
  * ---------------------------------------------------------------------------
  * 返回结果：
  *     无返回值（void）
@@ -576,9 +586,9 @@ void MainWindow::updateStatusBar()
      * getTotalExpense() —— 返回所有流水中类型为"支出"的金额总和
      * getBalance()      —— 返回总收入减去总支出的结果（结余）
      */
-    double income  = m_ledger.getTotalIncome();
-    double expense = m_ledger.getTotalExpense();
-    double balance = m_ledger.getBalance();
+    const Money income = m_ledger.getTotalIncome();
+    const Money expense = m_ledger.getTotalExpense();
+    const Money balance = m_ledger.getBalance();
 
     /*
      * 设置总收入标签的 HTML 内容
@@ -591,7 +601,7 @@ void MainWindow::updateStatusBar()
      */
     m_statusIncome->setText(
         QString("  总收入  <span style='color:#27AE60;font-weight:bold;'>+%1</span>   ")
-            .arg(income, 0, 'f', 2));
+            .arg(QString::fromStdString(formatMoney(income))));
 
     /*
      * 设置总支出标签的 HTML 内容
@@ -600,7 +610,7 @@ void MainWindow::updateStatusBar()
      */
     m_statusExpense->setText(
         QString("总支出  <span style='color:#E74C3C;font-weight:bold;'>-%1</span>   ")
-            .arg(expense, 0, 'f', 2));
+            .arg(QString::fromStdString(formatMoney(expense))));
 
     /*
      * 设置结余标签的 HTML 内容
@@ -620,7 +630,7 @@ void MainWindow::updateStatusBar()
         QString("结余  <span style='color:%1;font-weight:bold;'>%2%3</span>   ")
             .arg(balance >= 0 ? "#27AE60" : "#E74C3C")  // %1 — 根据正负选择颜色
             .arg(balance >= 0 ? "+" : "")                // %2 — 正数时加 "+" 号
-            .arg(balance, 0, 'f', 2));                   // %3 — 结余金额（保留两位小数）
+            .arg(QString::fromStdString(formatMoney(balance))));
 }
 
 /*
@@ -633,7 +643,7 @@ void MainWindow::updateStatusBar()
  *       - 用户修改了分类设置后
  *       - 需要确保整个界面显示的是最新数据时
  *
- *     该方法依次调用四个页面的 refresh() 方法，然后更新状态栏。
+ *     该方法依次调用五个页面的 refresh() 方法，然后更新状态栏。
  *     每个页面的 refresh() 方法会从账本中重新读取数据并更新显示。
  * ---------------------------------------------------------------------------
  * 参数说明：

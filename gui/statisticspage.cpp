@@ -27,8 +27,14 @@
 #include <QPainter>      // Qt 2D绘图核心类 —— 所有画笔、画刷、几何绘制均通过它完成
 #include <QPainterPath>  // 绘图路径 —— 用于定义复杂形状（圆角矩形等）
 #include <QDate>         // 日期类 —— 用于计算时间范围的起止日期
+#include <QColor>
+#include <QFont>
+#include <QPaintEvent>
+#include <QRectF>
 #include <cmath>         // C++标准数学库 —— std::min, std::max等
 #include <algorithm>     // C++标准算法库 —— std::sort用于对分类数据排序
+#include <map>
+#include <string>
 
 // ==================== PieChartWidget（饼图/甜甜圈图控件）====================
 
@@ -63,6 +69,7 @@ void PieChartWidget::setData(const std::vector<std::pair<QString, double>>& data
                               const QStringList& colors) {
     m_data = data;
     m_colors = colors;
+    if (m_colors.isEmpty()) m_colors.append("#95A5A6");
     m_total = 0;
     // 遍历所有数据项，累加得到总金额 —— 这是饼图"100%"的基准
     for (const auto& [name, val] : data) m_total += val;
@@ -156,10 +163,10 @@ void PieChartWidget::paintEvent(QPaintEvent *) {
     p.setRenderHint(QPainter::Antialiasing);         // 开启抗锯齿 —— 圆滑弧线边缘
 
     // -------- 计算饼图的几何参数 --------
-    // side: 饼图直径 = min(宽, 高) - 20（左右各留10像素边距）
-    int side = (int)(std::min(width(), height()) * 0.7) - 10;
+    const int legendWidth = std::max(150, width() / 3);
+    int side = std::max(20, std::min(width() - legendWidth - 24, height() - 20));
     // cx, cy: 控件的中心坐标 —— 饼图的圆心位置
-    int cx = side / 2 + 20;
+    int cx = side / 2 + 10;
     int cy = height() / 2;
     // pieRect: 饼图的外接矩形（QRectF使用浮点数，精度更高）
     // 左上角坐标 = (cx - side/2, cy - side/2)，宽 = 高 = side
@@ -205,18 +212,25 @@ void PieChartWidget::paintEvent(QPaintEvent *) {
 
     // 右侧图例：色块 + 分类名称 + 百分比
     int legendX = cx + side / 2 + 16;
-    int legendY = cy - (int)m_data.size() * 13;
+    const int availableRows = std::max(1, (height() - 16) / 22);
+    const int visibleRows = std::min(static_cast<int>(m_data.size()), availableRows);
+    int legendY = std::max(8, (height() - visibleRows * 22) / 2);
     p.setFont(QFont("Microsoft YaHei", 9));
-    for (size_t i = 0; i < m_data.size(); i++) {
-        int y = legendY + (int)i * 22;
+    for (int i = 0; i < visibleRows; i++) {
+        int y = legendY + i * 22;
         QColor color(m_colors[i % m_colors.size()]);
         p.setBrush(color);
         p.setPen(Qt::NoPen);
         p.drawRect(legendX, y, 12, 12);
         p.setPen(QColor("#2C3E50"));
-        double pct = m_data[i].second / m_total * 100.0;
-        p.drawText(legendX + 18, y + 11,
-                   QString("%1 (%2%)").arg(m_data[i].first).arg(pct, 0, 'f', 1));
+        if (i == visibleRows - 1 && visibleRows < static_cast<int>(m_data.size())) {
+            p.drawText(legendX + 18, y + 11,
+                       QString("其余 %1 项").arg(m_data.size() - visibleRows + 1));
+        } else {
+            double pct = m_data[i].second / m_total * 100.0;
+            p.drawText(legendX + 18, y + 11,
+                       QString("%1 (%2%)").arg(m_data[i].first).arg(pct, 0, 'f', 1));
+        }
     }        // 绘制内圆（椭圆在正方形区域 = 正圆）
     // 此时内圆"覆盖"在饼图扇区的中心部分之上，形成从外向内看——
     // 各扇区的颜色占据外环，中心是一块白色圆形区域（甜甜圈孔）
@@ -449,7 +463,8 @@ void BarChartWidget::paintEvent(QPaintEvent *) {
  * 注意: 构造函数中不加载数据 —— 数据加载由外部调用 refresh() 触发，
  *       或在页面首次显示时由主窗口调用
  */
-StatisticsPage::StatisticsPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
+StatisticsPage::StatisticsPage(Ledger& ledger, const CategoryManager& catMan,
+                               QWidget *parent)
     : QWidget(parent), m_ledger(ledger), m_catMan(catMan)
 {
     setupUI();
@@ -660,10 +675,9 @@ void StatisticsPage::onRangeChanged()
  *               addMonths(-3) 向前推3个月
  *   - "近1年":  startDate = today.addYears(-1)
  *               addYears(-1) 向前推1年
- *   - "全部":   startDate = 2000-01-01（一个极早的日期，涵盖所有数据）
+ *   - "全部":   直接读取所有记录，不设置人为最早日期
  *
- * 计算出的 startDate 和 endDate（today）被转换为 "yyyy-MM-dd" 格式的字符串，
- * 传递给 Ledger::getRecordsByDateRange() 进行过滤。
+ * 非“全部”范围的起止日期会转换为 "yyyy-MM-dd" 字符串，再交给 Ledger 过滤。
  *
  * ==================== 汇总标签的HTML富文本说明 ====================
  * 因为 createSummaryLabel 中设置了 setTextFormat(Qt::RichText)，
@@ -688,57 +702,48 @@ void StatisticsPage::loadCharts()
     // ======== 第1步: 计算时间范围 ========
     QString range = m_rangeCombo->currentText();          // 获取当前选中的范围选项文本
     QDate today = QDate::currentDate();                   // 获取今天的日期
-    QDate startDate;                                      // 待计算的起始日期
-
-    if (range == QStringLiteral("本月")) {
-        // 本月: 从当前月的第1天开始
-        // QDate(year, month, day) —— day=1 表示该月第一天
-        startDate = QDate(today.year(), today.month(), 1);
-    } else if (range == QStringLiteral("近3个月")) {
-        // 近3个月: 从3个月前到今天
-        // addMonths(负数) 返回新的QDate（不修改原对象）
-        startDate = today.addMonths(-3);
-    } else if (range == QStringLiteral("近1年")) {
-        // 近1年: 从1年前的今天开始
-        startDate = today.addYears(-1);
+    std::vector<Record> txns;
+    if (range == QStringLiteral("全部")) {
+        txns = m_ledger.getAllRecords();
     } else {
-        // 全部: 用一个足够早的日期作为起点，确保覆盖所有历史数据
-        startDate = QDate(2000, 1, 1); // "全部" —— 2000年1月1日是一个合理的"最早"日期
+        QDate startDate;
+        QDate endDate = today;
+        if (range == QStringLiteral("本月")) {
+            startDate = QDate(today.year(), today.month(), 1);
+            endDate = QDate(today.year(), today.month(), today.daysInMonth());
+        } else if (range == QStringLiteral("近3个月")) {
+            startDate = today.addMonths(-3);
+        } else {
+            startDate = today.addYears(-1);
+        }
+        txns = m_ledger.getRecordsByDateRange(
+            startDate.toString("yyyy-MM-dd").toStdString(),
+            endDate.toString("yyyy-MM-dd").toStdString());
     }
 
-    // 将日期对象转换为标准格式的字符串 "yyyy-MM-dd"
-    // 例如: 2025年6月19日 → "2025-06-19"
-    QString startStr = startDate.toString("yyyy-MM-dd");
-    QString endStr   = today.toString("yyyy-MM-dd");
-
-    // ======== 第2步: 从数据层获取该时间范围内的所有流水 ========
-    // Ledger::getRecordsByDateRange 按日期范围过滤流水记录
-    // 参数为 string 格式的起止日期，返回符合条件的流水向量
-    auto txns = m_ledger.getRecordsByDateRange(
-        startStr.toStdString(), endStr.toStdString());
-
     // ======== 第3步: 多维度汇总计算 ========
-    double totalIncome = 0, totalExpense = 0;              // 全局总计: 总收入、总支出
+    Money totalIncome = 0;
+    Money totalExpense = 0;
 
     // expenseByCat: 支出分类汇总 —— key=分类名称(str), value=该分类的总金额
     // incomeByCat:  收入分类汇总 —— 同上
     // 使用 std::map 是因为它自动按key排序（虽然不是必需的，但便于调试）
-    std::map<std::string, double> expenseByCat, incomeByCat;
+    std::map<std::string, Money> expenseByCat, incomeByCat;
 
     // monthlyMap: 月度汇总 —— key=月份字符串("yyyy-MM"), value=pair<收入, 支出>
     // 例如: "2025-06" → {5000.0, 3200.0} 表示6月收入5000，支出3200
-    std::map<std::string, std::pair<double, double>> monthlyMap;
+    std::map<std::string, std::pair<Money, Money>> monthlyMap;
 
     // 遍历所有流水记录，按类型分别累加到对应的汇总容器中
     for (const auto& t : txns) {
         if (t.type == RecordType::INCOME) {
             // ---- 收入流水 ----
-            totalIncome += t.amount;                       // 累加总收入
-            incomeByCat[t.category] += t.amount;           // 累加该分类的收入
+            totalIncome += t.amountCents;
+            incomeByCat[t.category] += t.amountCents;
         } else {
             // ---- 支出流水 ----
-            totalExpense += t.amount;                      // 累加总支出
-            expenseByCat[t.category] += t.amount;          // 累加该分类的支出
+            totalExpense += t.amountCents;
+            expenseByCat[t.category] += t.amountCents;
         }
 
         // ---- 月度汇总 ----
@@ -747,15 +752,15 @@ void StatisticsPage::loadCharts()
         std::string month = t.date.substr(0, 7);
 
         // monthlyMap[month] 如果month键不存在，会自动创建一个
-        // 默认值为 pair<double, double>(0, 0)
+        // 默认值为 pair<Money, Money>(0, 0)
         if (t.type == RecordType::INCOME)
-            monthlyMap[month].first += t.amount;           // first = 收入累加
+            monthlyMap[month].first += t.amountCents;
         else
-            monthlyMap[month].second += t.amount;          // second = 支出累加
+            monthlyMap[month].second += t.amountCents;
     }
 
     // 计算结余 = 总收入 - 总支出
-    double balance = totalIncome - totalExpense;
+    Money balance = totalIncome - totalExpense;
 
     // ======== 第4步: 更新四个汇总数字标签（HTML富文本） ========
 
@@ -765,17 +770,20 @@ void StatisticsPage::loadCharts()
     //   参数2('f') = 格式字符（f=定点格式，即普通小数）
     //   参数3(2) = 精度（保留2位小数）
     m_summaryIncome->setText(
-        QString("<div style='text-align:center;'>收入<br>+%1</div>").arg(totalIncome, 0, 'f', 2));
+        QString("<div style='text-align:center;'>收入<br>+%1</div>")
+            .arg(QString::fromStdString(formatMoney(totalIncome))));
 
     // ---- 支出标签: 红色，显示 "支出<br>-xxxx.xx" ----
     m_summaryExpense->setText(
-        QString("<div style='text-align:center;'>支出<br>-%1</div>").arg(totalExpense, 0, 'f', 2));
+        QString("<div style='text-align:center;'>支出<br>-%1</div>")
+            .arg(QString::fromStdString(formatMoney(totalExpense))));
 
     // ---- 结余标签: 蓝色，正数前加"+"号 ----
     // balance >= 0 ? "+" : "" —— 正结余显示"+"，负结余显示"-"（arg已含负号）
     m_summaryBalance->setText(
         QString("<div style='text-align:center;'>结余<br>%1%2</div>")
-            .arg(balance >= 0 ? "+" : "").arg(balance, 0, 'f', 2));
+            .arg(balance >= 0 ? "+" : "")
+            .arg(QString::fromStdString(formatMoney(balance))));
 
     // ---- 笔数标签: 灰色，显示 "笔数<br>xx" ----
     // txns.size() 返回 size_t 类型，QString::arg 自动处理
@@ -787,7 +795,7 @@ void StatisticsPage::loadCharts()
     {
         // ---- 将 std::map 转为 std::vector 以便排序 ----
         std::vector<std::pair<QString, double>> pieData;   // 最终传给饼图的数据
-        std::vector<std::pair<std::string, double>> sorted; // 临时: 用于排序
+        std::vector<std::pair<std::string, Money>> sorted; // 临时: 用于排序
 
         // 将 expenseByCat 的内容复制到 sorted 向量中
         for (const auto& [cat, val] : expenseByCat) sorted.push_back({cat, val});
@@ -800,7 +808,7 @@ void StatisticsPage::loadCharts()
 
         // 将排序后的数据转为 QString 类型的键（Qt控件使用QString而非std::string）
         for (const auto& [cat, val] : sorted)
-            pieData.push_back({QString::fromStdString(cat), val});
+            pieData.push_back({QString::fromStdString(cat), moneyToDouble(val)});
 
         // ---- 定义支出饼图的颜色方案 ----
         // 以红色系和暖色系为主，符合"支出"的视觉感受
@@ -816,7 +824,7 @@ void StatisticsPage::loadCharts()
     // 逻辑与支出饼图完全相同，只是数据来源不同
     {
         std::vector<std::pair<QString, double>> pieData;
-        std::vector<std::pair<std::string, double>> sorted;
+        std::vector<std::pair<std::string, Money>> sorted;
 
         for (const auto& [cat, val] : incomeByCat) sorted.push_back({cat, val});
 
@@ -825,7 +833,7 @@ void StatisticsPage::loadCharts()
             [](auto& a, auto& b) { return a.second > b.second; });
 
         for (const auto& [cat, val] : sorted)
-            pieData.push_back({QString::fromStdString(cat), val});
+            pieData.push_back({QString::fromStdString(cat), moneyToDouble(val)});
 
         // ---- 定义收入饼图的颜色方案 ----
         // 以绿色系为主，符合"收入/正向"的视觉感受
@@ -839,7 +847,7 @@ void StatisticsPage::loadCharts()
     {
         // ---- 将月度汇总 map 转为 vector 并按月份排序 ----
         // 月份字符串 "2025-01", "2025-02", ... 的自然字符串排序 = 时间排序
-        std::vector<std::pair<std::string, std::pair<double, double>>> sortedMonthly;
+        std::vector<std::pair<std::string, std::pair<Money, Money>>> sortedMonthly;
         for (const auto& [month, vals] : monthlyMap) sortedMonthly.push_back({month, vals});
         std::sort(sortedMonthly.begin(), sortedMonthly.end());
 
@@ -858,9 +866,9 @@ void StatisticsPage::loadCharts()
         std::vector<std::pair<QString, double>> barData;
         for (const auto& [month, vals] : sortedMonthly) {
             // 先加入该月的收入柱
-            barData.push_back({QString::fromStdString(month), vals.first});
+            barData.push_back({QString::fromStdString(month), moneyToDouble(vals.first)});
             // 再加入该月的支出柱
-            barData.push_back({QString::fromStdString(month), vals.second});
+            barData.push_back({QString::fromStdString(month), moneyToDouble(vals.second)});
         }
 
         // 传入数据及图例标签 "收入" / "支出"

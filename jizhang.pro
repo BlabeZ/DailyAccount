@@ -13,8 +13,10 @@ RC_ICONS  =
 # Header include paths (backend business logic + GUI layer)
 INCLUDEPATH += backend gui
 
-# MinGW static link workaround for -O2 optimization crash
-QMAKE_LFLAGS += -static-libstdc++ -static-libgcc
+# MinGW runtime libraries are linked statically; Qt DLLs are deployed separately.
+win32-g++ {
+    QMAKE_LFLAGS += -static-libstdc++ -static-libgcc
+}
 
 # MinGW auto-detects UTF-8 source encoding.
 # No explicit -finput-charset needed.

@@ -1,204 +1,63 @@
-/*
- * ===========================================================================
- * : storage.h
- * : backend
- * :  StorageManager   /д
- *
- * :
- *   洢:
- *     1. records.dat  洢н
- *     2. categories.dat   洢
- *
- * :
- *   - 谲SQLite/MySQL 
- *   - ü±/
- *   - 
- *   - С
- *     
- *
- * :
- *   records.dat :
- *     id|date|time|type|amount|category|note
- *     : 1|2026-06-19|12:30|EXPENSE|35.50||
- *
- *   categories.dat :
- *     INCOME|    EXPENSE|
- *     : EXPENSE|
- *            INCOME|
- *
- * :
- *    data/ С
- *    data/ в
- *
- * : GB2312
- * ===========================================================================
- */
-
 #ifndef STORAGE_H
 #define STORAGE_H
 
-#include <string>    //  std::string  ·
-#include <vector>    //  std::vector  б
-#include "record.h"      //  Record  RecordType
-#include "category.h"     //  CategoryManager /
+#include "record.h"
 
-// ============================================================================
-// : StorageManager
-// ----------------------------------------------------------------------------
-// : 洢 / 
-// :
-//   е浽
-//   档
-//   "浵/"顣
-//
-// :
-//   1.  data/ 
-//   2. 棨д
-//   3. 棨д
-//   4.  IDΨ
-//
-// е:
-//   : loadRecords()   records.dat 
-//           loadCategories()     categories.dat 
-//   : //  浽
-//   : 棩
-// ============================================================================
-class StorageManager {
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <utility>
+#include <vector>
+
+enum class StorageFormat {
+    Empty,
+    Legacy,
+    V3
+};
+
+struct StoredData {
+    std::vector<Record> records;
+    std::vector<std::pair<RecordType, std::string>> customCategories;
+    std::int64_t nextId = 1;
+    StorageFormat format = StorageFormat::Empty;
+};
+
+class LedgerStorage {
 public:
-    // =========================================================================
-    // : StorageManager
-    // : 洢·
-    // :
-    //   dataDir   "data"
-    //             
-    // :
-    //   1. ·: dataDir/records.dat  dataDir/categories.dat
-    //   2.  ensureDataDir() 
-    // :
-    //   StorageManager storage("data");  //  ./data/ 
-    // =========================================================================
-    StorageManager(const std::string& dataDir = "data");
+    virtual ~LedgerStorage() = default;
+    virtual bool load(StoredData& data) = 0;
+    virtual bool save(const StoredData& data) = 0;
+    virtual const std::string& lastError() const = 0;
+};
 
-    // =========================================================================
-    // : loadRecords
-    // -------------------------------------------------------------------------
-    // :  records.dat мн档
-    //
-    // :
-    //   id|date|time|type|amount|category|note
-    //   ù | 7Ρ
-    //    | Σ
-    //
-    // :
-    //   - 
-    //   - 6  
-    //   -   
-    //   -  ID  ID
-    //
-    // :
-    //   std::vector<Record>  гб
-    //   б
-    // =========================================================================
-    std::vector<Record> loadRecords();
+class StorageManager final : public LedgerStorage {
+public:
+    explicit StorageManager(std::filesystem::path dataDirectory = "data");
 
-    // =========================================================================
-    // : saveRecords
-    // -------------------------------------------------------------------------
-    // : енд records.dat 
-    //       д棩
-    //
-    //  vs :
-    //   : емд顣
-    //   
-    //   á
-    //
-    // : λС 35.50  35.5 std::fixed + std::setprecision(2)
-    //
-    // :
-    //   records  б
-    // :
-    //   bool  true false д
-    // =========================================================================
-    bool saveRecords(const std::vector<Record>& records);
+    bool load(StoredData& data) override;
+    bool save(const StoredData& data) override;
+    const std::string& lastError() const override { return m_lastError; }
 
-    // =========================================================================
-    // : loadCategories
-    // -------------------------------------------------------------------------
-    // :  categories.dat м CategoryManager
-    //
-    // :
-    //   EXPENSE|    INCOME|
-    //
-    // :
-    //   - 
-    //   -  | :   
-    //   -  CategoryManager::addCustomCategoryFromStorage 
-    //
-    // :  CategoryManager 
-    //
-    // :
-    //   catMan  CategoryManager 
-    // =========================================================================
-    void loadCategories(CategoryManager& catMan);
+    bool isReady() const { return m_ready; }
+    bool hasBackup() const;
+    bool loadBackup(StoredData& data);
+    bool restoreBackup();
 
-    // =========================================================================
-    // : saveCategories
-    // -------------------------------------------------------------------------
-    // :  CategoryManager е浽 categories.dat 
-    //       棨δ
-    //
-    // :
-    //   catMan  CategoryManager б
-    // :
-    //   bool  true false 
-    // =========================================================================
-    bool saveCategories(const CategoryManager& catMan);
-
-    // =========================================================================
-    // ID 
-    // -------------------------------------------------------------------------
-    // getNextId: 
-    // setNextId:  ID 
-    //
-    // ID :
-    //   1.  records.dat  ID
-    //   2.  m_nextId  maxId + 1
-    //   3.  m_nextId  m_nextId 
-    //   4.  ID Ψ
-    // =========================================================================
-    int getNextId() const { return m_nextId; }
-    void setNextId(int id) { m_nextId = id; }
+    const std::filesystem::path& dataDirectory() const { return m_dataDirectory; }
+    const std::filesystem::path& dataFilePath() const { return m_dataFile; }
+    const std::filesystem::path& backupFilePath() const { return m_backupFile; }
 
 private:
-    // =========================================================================
-    // 
-    // =========================================================================
+    bool ensureDataDirectory();
+    bool recoverInterruptedSave();
 
-    // · "data"
-    std::string m_dataDir;
-
-    // · "data/records.dat"
-    std::string m_recFile;
-
-    // · "data/categories.dat"
-    std::string m_catFile;
-
-    //  ID 1
-    int m_nextId = 1;
-
-    // =========================================================================
-    // и: ensureDataDir
-    // : 
-    //       дá
-    //       ò API:
-    //         Windows  _mkdir()
-    //         Linux/macOS  mkdir()
-    // =========================================================================
-    void ensureDataDir();
+    std::filesystem::path m_dataDirectory;
+    std::filesystem::path m_dataFile;
+    std::filesystem::path m_backupFile;
+    std::filesystem::path m_legacyRecordsFile;
+    std::filesystem::path m_legacyCategoriesFile;
+    std::string m_lastError;
+    bool m_ready = false;
 };
 
 #endif // STORAGE_H
-// ============================================================================
-// : storage.h
-// ""
-// ============================================================================

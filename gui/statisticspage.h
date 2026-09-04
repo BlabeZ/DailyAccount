@@ -16,7 +16,10 @@
 #include <QWidget>       // Qt窗口部件基类 —— 所有可视化控件均继承自它
 #include <QComboBox>     // 下拉框 —— 用于选择时间范围（本月/近3月/近1年/全部）
 #include <QLabel>        // 标签控件 —— 显示标题、汇总数字
+#include <QStringList>
 #include <QVBoxLayout>   // 垂直布局器 —— 用于组织页面内的控件堆叠
+#include <utility>
+#include <vector>
 
 // 前向声明（forward declaration）—— 避免头文件循环依赖，只需要指针或引用时使用
 class Ledger;
@@ -184,7 +187,8 @@ public:
     // 说明: 接收并保存两个数据层引用，然后调用 setupUI() 构建界面
     //       Qt的引用传递保证此处不产生拷贝开销，但被引用对象生命周期应长于此页面
     // -------------------------------------------------------------------------
-    explicit StatisticsPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent = nullptr);
+    explicit StatisticsPage(Ledger& ledger, const CategoryManager& catMan,
+                            QWidget *parent = nullptr);
 
     // -------------------------------------------------------------------------
     // 方法名: refresh
@@ -246,13 +250,13 @@ private:
     // ---------- 成员变量 ----------
 
     // m_ledger: 对数据层 Ledger 的引用 ——
-    //           Ledger 负责所有流水记录的持久化（读写JSON文件），
+    //           Ledger 负责所有流水记录的事务式快照持久化，
     //           并提供按日期范围查询流水的方法
     Ledger& m_ledger;
 
     // m_catMan: 对 CategoryManager 的引用 ——
     //           管理预设分类和自定义分类，提供分类查询接口
-    CategoryManager& m_catMan;
+    const CategoryManager& m_catMan;
 
     // m_rangeCombo: 时间范围下拉框 ——
     //               选项为 ["本月", "近3个月", "近1年", "全部"]

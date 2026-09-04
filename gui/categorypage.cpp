@@ -11,7 +11,7 @@
  * 核心设计原则:
  *   - 预设分类（系统内置）不可删除 —— 保证基本记账功能始终可用
  *   - 正在被流水记录使用的分类不可删除 —— 防止出现"悬挂引用"导致数据不一致
- *   - 所有变更通过 Ledger::save() 立即持久化 —— 崩溃后数据不丢失
+ *   - 所有变更通过 Ledger 事务接口持久化，保存失败时界面状态不变
  *   - CategoryManager 是分类数据的唯一真相来源（Single Source of Truth）
  * ============================================================================
  */
@@ -22,14 +22,17 @@
 #include <QVBoxLayout>      // 垂直布局 —— 页面内从上到下堆叠控件
 #include <QHBoxLayout>      // 水平布局 —— 左右两列并排、输入行中的控件排列
 #include <QFrame>           // 框架控件 —— 作为卡片容器（通过CSS class "card" 渲染圆角白底）
+#include <QLabel>
 #include <QMessageBox>      // 消息框 —— 用于向用户展示操作结果（警告、提示、错误）
+#include <QPushButton>
 #include <QApplication>     // 应用程序类 —— 提供全局属性访问
+#include <QColor>
 
 // ============================================================================
 // 构造函数
 //
-// 参数 ledger: 账本对象引用 —— 在添加/删除分类成功后调用其save()方法持久化
-// 参数 catMan: 分类管理器引用 —— 提供所有分类相关的增删查接口
+// 参数 ledger: 账本对象引用 —— 提供事务式分类修改接口
+// 参数 catMan: 分类管理器只读引用 —— 提供分类查询接口
 // 参数 parent: 父级窗口指针 —— Qt父子所有权体系管理此控件的生命周期
 //
 // 初始化顺序:
@@ -40,10 +43,11 @@
 //
 // 注意: 构造函数中不加载分类数据。数据加载由外部调用 refresh() 执行，
 //       这允许主窗口在合适的时机（页面首次显示前）再加载数据，
-//       避免构造阶段的不必要数据库访问。
+//       避免构造阶段的不必要数据读取。
 // ============================================================================
-CategoryPage::CategoryPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
-    : QWidget(parent), m_ledger(ledger), m_catMan(catMan)
+CategoryPage::CategoryPage(Ledger& ledger, const CategoryManager& catMan,
+                           QWidget *parent)
+    : QWidget(parent), m_ledger(ledger), m_categoryManager(catMan)
 {
     setupUI();
 }
@@ -240,7 +244,7 @@ void CategoryPage::refresh()
 //
 // 自定义分类（Custom Category）:
 //   - 用户通过本页面的"添加"按钮创建的分类
-//   - 添加后由 Ledger::save() 持久化到JSON文件
+//   - 添加操作由 Ledger 作为完整快照持久化
 //   - 标记 isPreset = false
 //   - 可以删除，但有一个前提条件：该分类未被任何流水记录使用
 //
@@ -278,19 +282,19 @@ void CategoryPage::loadCategories()
     m_incomeList->clear();
 
     // ---- 获取"正在被使用"的分类集合 ----
-    // CategoryManager::getInUseCategories 扫描所有流水记录，收集被引用的分类名
+    // CategoryManager::getInUseCategories 返回 Ledger 维护的被引用分类名
     // 返回类型是 std::set<std::string> —— 集合（不含重复元素）
-    auto inUseExpense = m_catMan.getInUseCategories(RecordType::EXPENSE);
-    auto inUseIncome  = m_catMan.getInUseCategories(RecordType::INCOME);
+    auto inUseExpense = m_categoryManager.getInUseCategories(RecordType::EXPENSE);
+    auto inUseIncome  = m_categoryManager.getInUseCategories(RecordType::INCOME);
 
     // ================================================================
     //  填充支出分类列表
     // ================================================================
-    auto expenseCats = m_catMan.getCategories(RecordType::EXPENSE);
+    auto expenseCats = m_categoryManager.getCategories(RecordType::EXPENSE);
     for (const auto& cat : expenseCats) {
         // ---- 判断分类状态 ----
         // isPreset: CategoryManager::isPreset 查询该分类是否在预设列表中
-        bool isPreset = m_catMan.isPreset(RecordType::EXPENSE, cat);
+        bool isPreset = m_categoryManager.isPreset(RecordType::EXPENSE, cat);
 
         // isInUse: 检查该分类名是否出现在"使用中"集合中
         // find() 返回迭代器，!= end() 表示找到了
@@ -329,9 +333,9 @@ void CategoryPage::loadCategories()
     // ================================================================
     //  填充收入分类列表（逻辑与支出列表完全相同）
     // ================================================================
-    auto incomeCats = m_catMan.getCategories(RecordType::INCOME);
+    auto incomeCats = m_categoryManager.getCategories(RecordType::INCOME);
     for (const auto& cat : incomeCats) {
-        bool isPreset = m_catMan.isPreset(RecordType::INCOME, cat);
+        bool isPreset = m_categoryManager.isPreset(RecordType::INCOME, cat);
         bool isInUse  = (inUseIncome.find(cat) != inUseIncome.end());
 
         QString display = QString::fromStdString(cat);
@@ -358,24 +362,16 @@ void CategoryPage::loadCategories()
 //         → 防止用户只输入空格，或名称前后带有无意义的空白字符
 //  第2步: 空值检查
 //         → 如果trimmed后为空，弹出"请输入分类名称"警告框，return终止
-//  第3步: 调用 CategoryManager::addCustomCategory(EXPENSE, name)
+//  第3步: 调用 Ledger::addCustomCategory(EXPENSE, name)
 //         → 内部检查: 名称是否已存在（含预设名称）、名称是否合法
 //         → 返回 true = 添加成功，false = 失败（重复或无效）
-//  第4a步（成功）: 调用 m_ledger.save() 持久化分类数据到JSON文件
-//                  → 然后调用 loadCategories() 刷新列表显示
+//  第4a步（成功）: Ledger 已原子保存完整账本
+//                  → 主窗口收到 dataChanged() 后刷新所有页面
 //                  → 清空输入框（准备下一次输入）
 //  第4b步（失败）: 弹出"分类名称已存在或无效"警告框
 //                  → 输入框不清空，方便用户修正后重试
 //
-// ==================== 数据持久化 ====================
-// m_ledger.save() 将当前内存中的全部分类数据（包含新增的自定义分类）
-// 序列化为JSON格式并写入文件。这样程序重启后，自定义分类仍然存在。
-// 典型的JSON结构:
-//   "categories": {
-//     "expense": ["餐饮", "交通", "购物", "宠物"],
-//     "income":  ["工资", "理财", "兼职"]
-//   }
-// 其中"宠物"是用户通过此函数添加的自定义分类。
+// Ledger 先保存包含记录、分类和 next ID 的 V3 候选快照，成功后才更新内存。
 // ============================================================================
 void CategoryPage::onAddExpenseCategory()
 {
@@ -399,19 +395,12 @@ void CategoryPage::onAddExpenseCategory()
     //   1. 检查该名称是否已被（预设或自定义）分类占用
     //   2. 检查名称是否合法（非空、无非法字符等）
     //   3. 如果通过，将新分类加入内部数据结构并返回 true
-    if (m_catMan.addCustomCategory(RecordType::EXPENSE, name.toStdString())) {
-        // ---- 第4a步: 添加成功 ----
-        m_ledger.save();                                  // 立即持久化到文件
-        loadCategories();                                 // 刷新列表显示（新分类出现在列表中）
-        m_expenseInput->clear();                          // 清空输入框
-    } else {
-        // ---- 第4b步: 添加失败 ----
-        // 最常见的失败原因: 分类名与已有分类重复
-        QMessageBox::warning(this,
-                             QStringLiteral("添加失败"),
-                             QStringLiteral("分类名称已存在或无效。"));
-        // 输入框保留用户刚才输入的文本，方便修改后重试
+    if (!m_ledger.addCustomCategory(RecordType::EXPENSE, name.toStdString())) {
+        showLedgerError(QStringLiteral("添加支出分类"));
+        return;
     }
+    m_expenseInput->clear();
+    emit dataChanged();
 }
 
 // ============================================================================
@@ -435,15 +424,12 @@ void CategoryPage::onAddIncomeCategory()
         return;
     }
 
-    if (m_catMan.addCustomCategory(RecordType::INCOME, name.toStdString())) {
-        m_ledger.save();                                  // 持久化
-        loadCategories();                                 // 刷新列表
-        m_incomeInput->clear();                           // 清空输入框
-    } else {
-        QMessageBox::warning(this,
-                             QStringLiteral("添加失败"),
-                             QStringLiteral("分类名称已存在或无效。"));
+    if (!m_ledger.addCustomCategory(RecordType::INCOME, name.toStdString())) {
+        showLedgerError(QStringLiteral("添加收入分类"));
+        return;
     }
+    m_incomeInput->clear();
+    emit dataChanged();
 }
 
 // ============================================================================
@@ -472,9 +458,8 @@ void CategoryPage::onAddIncomeCategory()
 //
 //  第6步: 所有校验通过，执行删除
 //         - 从 Qt::UserRole 读取分类名称
-//         - 调用 CategoryManager::removeCustomCategory(EXPENSE, name)
-//         - 调用 m_ledger.save() 持久化变更
-//         - 调用 loadCategories() 刷新列表
+//         - 调用 Ledger::removeCustomCategory(EXPENSE, name)
+//         - Ledger 原子保存成功后发出 dataChanged() 刷新所有页面
 //
 // ==================== 三级校验的设计意图 ====================
 // 校验1（选中检查）: 防止空指针解引用（读取 null->data() 会导致崩溃）
@@ -525,10 +510,11 @@ void CategoryPage::onDeleteExpenseCategory()
 
     // removeCustomCategory 从 CategoryManager 的内部数据结构中移除该分类
     // 返回值: true=删除成功, false=失败（理论上这里总是成功，因为校验已通过）
-    if (m_catMan.removeCustomCategory(RecordType::EXPENSE, name.toStdString())) {
-        m_ledger.save();                                  // 持久化删除操作到文件
-        loadCategories();                                 // 刷新列表 —— 被删的分类消失
+    if (!m_ledger.removeCustomCategory(RecordType::EXPENSE, name.toStdString())) {
+        showLedgerError(QStringLiteral("删除支出分类"));
+        return;
     }
+    emit dataChanged();
 }
 
 // ============================================================================
@@ -573,8 +559,15 @@ void CategoryPage::onDeleteIncomeCategory()
 
     // ---- 执行删除 ----
     QString name = item->data(Qt::UserRole).toString();
-    if (m_catMan.removeCustomCategory(RecordType::INCOME, name.toStdString())) {
-        m_ledger.save();                                  // 持久化
-        loadCategories();                                 // 刷新列表
+    if (!m_ledger.removeCustomCategory(RecordType::INCOME, name.toStdString())) {
+        showLedgerError(QStringLiteral("删除收入分类"));
+        return;
     }
+    emit dataChanged();
+}
+
+void CategoryPage::showLedgerError(const QString& action)
+{
+    QMessageBox::critical(this, action + QStringLiteral("失败"),
+                          QString::fromStdString(m_ledger.lastError()));
 }

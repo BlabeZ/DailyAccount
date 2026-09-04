@@ -1,111 +1,237 @@
-/*
- * ===========================================================================
- * : main_gui.cpp
- * : gui
- * : Qt GUI main 
- *           : (1)  Qt ó
- *                 (2) QSS
- *                 (3) 飨洢
- *                 (4)  Qt 
- *
- *  GUI ""  main() 
- *  GUI 
- *
- *  console/main.cpp :
- *     ν棨棨console/main.cpp
- *   backend/ г
- *
- * : GB2312
- * ===========================================================================
- */
+// DailyAccount GUI entry point and startup data recovery flow.
+#include <QApplication>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+#include <QFont>
+#include <QLockFile>
+#include <QMessageBox>
+#include <QStandardPaths>
+#include <QStringList>
 
-// ---- Qt  ----
-#include <QApplication>   // Qt ó   GUI 
-#include <QFont>          // Qt   ó
+#include <algorithm>
+#include <filesystem>
+#include <string>
+#include <system_error>
 
-// ---- GUI  ----
-#include "mainwindow.h"   //    +  + 
+#include "mainwindow.h"
 
-// ----  ----
-#include "storage.h"      // 洢  
-#include "category.h"     //   +壩
-#include "ledger.h"       //   
+#include "ledger.h"
+#include "storage.h"
 
-// ============================================================================
-// : main   C++ 
-// ----------------------------------------------------------------------------
-// :
-//   argc  вargument count
-//   argv  в飨argument vector
-//
-// :
-//   int  0 0
-//
-// °У:
-//   1.  QApplication    Qt 
-//   2.   
-//   3.   尴п
-//   4.   洢    
-//   5.   α
-//   6.   
-//   7.  Qt   
-// ============================================================================
+namespace {
+
+bool directoryHasLedgerSnapshot(const QString& directory)
+{
+    return QFileInfo::exists(QDir(directory).filePath("ledger.dat"));
+}
+
+bool directoryHasLegacyData(const QString& directory)
+{
+    const QDir dir(directory);
+    return QFileInfo::exists(dir.filePath("records.dat")) ||
+           QFileInfo::exists(dir.filePath("categories.dat"));
+}
+
+bool directoryHasPrimaryData(const QString& directory)
+{
+    return directoryHasLedgerSnapshot(directory) ||
+           directoryHasLegacyData(directory);
+}
+
+bool directoryHasAnyData(const QString& directory)
+{
+    return directoryHasPrimaryData(directory) ||
+           QFileInfo::exists(QDir(directory).filePath("ledger.dat.bak"));
+}
+
+std::filesystem::path nativePath(const QString& path)
+{
+#ifdef Q_OS_WIN
+    return std::filesystem::path(path.toStdWString());
+#else
+    return std::filesystem::u8path(path.toUtf8().constData());
+#endif
+}
+
+bool samePhysicalDirectory(const QString& left, const QString& right)
+{
+    std::error_code error;
+    const bool equivalent = std::filesystem::equivalent(
+        nativePath(left), nativePath(right), error);
+    if (!error) return equivalent;
+    return QDir::cleanPath(QDir(left).absolutePath()) ==
+           QDir::cleanPath(QDir(right).absolutePath());
+}
+
+bool migrateDiscoveredData(StorageManager& targetStorage,
+                           const QString& targetDirectory,
+                           QString& migratedFrom, QString& error)
+{
+    if (directoryHasAnyData(targetDirectory)) return true;
+
+    const QStringList rawCandidates = {
+        QDir(QDir::currentPath()).filePath("data"),
+        QDir(QCoreApplication::applicationDirPath()).filePath("data")
+    };
+
+    QStringList candidates;
+    for (const QString& rawCandidate : rawCandidates) {
+        const QString candidate = QDir::cleanPath(QDir(rawCandidate).absolutePath());
+        const bool duplicate = std::any_of(
+            candidates.cbegin(), candidates.cend(),
+            [&candidate](const QString& existing) {
+                return samePhysicalDirectory(candidate, existing);
+            });
+        if (samePhysicalDirectory(candidate, targetDirectory) || duplicate ||
+            !directoryHasAnyData(candidate)) {
+            continue;
+        }
+        candidates.append(candidate);
+    }
+
+    if (candidates.size() > 1) {
+        error = QStringLiteral("检测到多个旧数据目录，已停止自动迁移以避免合并错误：\n") +
+                candidates.join("\n");
+        return false;
+    }
+    if (candidates.isEmpty()) return true;
+
+    const QString sourceDirectory = candidates.front();
+    StorageManager sourceStorage(nativePath(sourceDirectory));
+    if (!sourceStorage.isReady()) {
+        error = QString::fromStdString(sourceStorage.lastError());
+        return false;
+    }
+
+    StoredData backupData;
+    const bool hasBackup = sourceStorage.hasBackup();
+    const bool backupValid = hasBackup && sourceStorage.loadBackup(backupData);
+    const QString backupError = hasBackup && !backupValid
+        ? QString::fromStdString(sourceStorage.lastError())
+        : QString();
+
+    Ledger sourceLedger(sourceStorage);
+    if (directoryHasLedgerSnapshot(sourceDirectory)) {
+        if (sourceLedger.load()) {
+            if (!sourceLedger.saveTo(targetStorage)) {
+                error = QString::fromStdString(sourceLedger.lastError());
+                return false;
+            }
+        } else {
+            const QString currentError = QString::fromStdString(sourceLedger.lastError());
+            if (!backupValid) {
+                error = currentError;
+                if (!backupError.isEmpty()) {
+                    error += QStringLiteral("\n备份也无效：") + backupError;
+                }
+                return false;
+            }
+            const auto choice = QMessageBox::question(
+                nullptr, "旧数据快照损坏",
+                currentError + "\n\n是否改用该目录中的完整备份进行迁移？\n" +
+                    sourceDirectory,
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+            if (choice != QMessageBox::Yes) {
+                error = "用户取消了从旧目录备份迁移，原数据未更改。";
+                return false;
+            }
+            if (!targetStorage.save(backupData)) {
+                error = QString::fromStdString(targetStorage.lastError());
+                return false;
+            }
+        }
+    } else {
+        const bool hasLegacyData = directoryHasLegacyData(sourceDirectory);
+        const bool legacyValid = hasLegacyData && sourceLedger.load();
+        const QString legacyError = hasLegacyData && !legacyValid
+            ? QString::fromStdString(sourceLedger.lastError())
+            : QString();
+
+        bool useBackup = false;
+        if (backupValid && legacyValid) {
+            const auto choice = QMessageBox::question(
+                nullptr, "选择迁移数据",
+                QStringLiteral(
+                    "旧目录同时包含完整安全备份和旧版数据。\n"
+                    "选择“是”使用安全备份，选择“否”使用旧版 records.dat / "
+                    "categories.dat，选择“取消”停止启动。\n\n") +
+                    sourceDirectory,
+                QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+                QMessageBox::Yes);
+            if (choice == QMessageBox::Cancel) {
+                error = "用户取消了旧数据迁移，原数据未更改。";
+                return false;
+            }
+            useBackup = choice == QMessageBox::Yes;
+        } else if (backupValid) {
+            const auto choice = QMessageBox::question(
+                nullptr, "发现旧数据备份",
+                QStringLiteral("旧目录中仅检测到可用的安全备份。是否从该备份迁移？\n\n") +
+                    sourceDirectory,
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+            if (choice != QMessageBox::Yes) {
+                error = "用户取消了从旧目录备份迁移，原数据未更改。";
+                return false;
+            }
+            useBackup = true;
+        } else if (!legacyValid) {
+            error = legacyError.isEmpty() ? backupError : legacyError;
+            if (!legacyError.isEmpty() && !backupError.isEmpty()) {
+                error += QStringLiteral("\n备份也无效：") + backupError;
+            }
+            return false;
+        }
+
+        if (useBackup) {
+            if (!targetStorage.save(backupData)) {
+                error = QString::fromStdString(targetStorage.lastError());
+                return false;
+            }
+        } else if (!sourceLedger.saveTo(targetStorage)) {
+            error = QString::fromStdString(sourceLedger.lastError());
+            return false;
+        }
+    }
+
+    migratedFrom = sourceDirectory;
+    return true;
+}
+
+QString lockFailureMessage(QLockFile::LockError error)
+{
+    switch (error) {
+    case QLockFile::LockFailedError:
+        return "另一个日常记账实例正在运行。";
+    case QLockFile::PermissionError:
+        return "没有权限创建数据锁文件。";
+    case QLockFile::UnknownError:
+    case QLockFile::NoError:
+        return "无法锁定数据目录。";
+    }
+    return "无法锁定数据目录。";
+}
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
-    // =========================================================================
-    // 1:  QApplication 
-    // QApplication  GUI "" У
-    // 
-    //  Qt GUI  QApplication 
-    // =========================================================================
     QApplication app(argc, argv);
+    QCoreApplication::setOrganizationName("DailyAccount");
+    QCoreApplication::setOrganizationDomain("dailyaccount.local");
+    QCoreApplication::setApplicationName("DailyAccount");
 
-    // =========================================================================
-    // 2: 
-    // : "Microsoft YaHei" Windows 
-    // С: 10pt  е
-    // ÷Χ: н
-    // =========================================================================
     QFont font("Microsoft YaHei", 10);
     app.setFont(font);
 
-    // =========================================================================
-    // 3: QSS = Qt Style Sheets
-    // -------------------------------------------------------------------------
-    //  QSS:
-    //   QSS е CSS Qt 
-    //   : " { : ; }"
-    //   : "QPushButton { background-color: #3498DB; }" а
-    //
-    // :
-    //   1. 壬Ч  
-    //   2.   /
-    //   3. α  hoverpresseddisabled
-    //
-    // : 
-    //   : #F5F7FA 
-    //   :   #FFFFFF 
-    //   :   #3498DB 
-    //   : #27AE60 /
-    //   : #E74C3C /
-    //   : #2C3E50 
-    // =========================================================================
+    // Keep the visual language centralized so dynamically created widgets match.
     app.setStyleSheet(R"(
-        /* ====================================================================
-         *    QWidget 
-         *  #F5F7FA 
-         *  #2C3E50 
-         * ==================================================================== */
         QWidget {
             background-color: #F5F7FA;
             color: #2C3E50;
             font-family: "Microsoft YaHei", "SimHei", sans-serif;
         }
 
-        /* ====================================================================
-         *   е""""""
-         *  +  6pxhover 
-         * ==================================================================== */
         QPushButton {
             background-color: #3498DB;
             color: white;
@@ -126,11 +252,6 @@ int main(int argc, char *argv[])
             color: #ECF0F1;
         }
 
-        /* ====================================================================
-         *    class="nav" 
-         * : 
-         *  [active="true"]:  + 
-         * ==================================================================== */
         QPushButton[class="nav"] {
             background-color: transparent;
             color: #2C3E50;
@@ -150,10 +271,6 @@ int main(int argc, char *argv[])
             font-weight: bold;
         }
 
-        /* ====================================================================
-         *   
-         *  +  + 10px ""Ч
-         * ==================================================================== */
         QFrame[class="card"] {
             background-color: #FFFFFF;
             border: 1px solid #E8ECF1;
@@ -161,10 +278,6 @@ int main(int argc, char *argv[])
             padding: 16px;
         }
 
-        /* ====================================================================
-         *   
-         *  + 
-         * ==================================================================== */
         QLineEdit, QDateEdit, QComboBox, QSpinBox, QDoubleSpinBox {
             background-color: #FFFFFF;
             border: 1px solid #D5DCE6;
@@ -234,10 +347,6 @@ int main(int argc, char *argv[])
             border-top-color: white;
         }
 
-        /* ====================================================================
-         *   б
-         * и
-         * ==================================================================== */
         QTableWidget, QTreeWidget {
             background-color: #FFFFFF;
             border: 1px solid #E8ECF1;
@@ -249,7 +358,6 @@ int main(int argc, char *argv[])
         QTableWidget::item, QTreeWidget::item {
             padding: 8px;
         }
-        /*    +  +  */
         QHeaderView::section {
             background-color: #F5F7FA;
             color: #7F8C8D;
@@ -260,9 +368,6 @@ int main(int argc, char *argv[])
             font-size: 12px;
         }
 
-        /* ====================================================================
-         * б  /б
-         * ==================================================================== */
         QListWidget {
             background-color: #FFFFFF;
             border: 1px solid #E8ECF1;
@@ -276,10 +381,6 @@ int main(int argc, char *argv[])
             background-color: #F5F7FA;
         }
 
-        /* ====================================================================
-         *   
-         * 8px + л
-         * ==================================================================== */
         QScrollBar:vertical {
             background: #F5F7FA;
             width: 8px;
@@ -297,9 +398,6 @@ int main(int argc, char *argv[])
             height: 0px;
         }
 
-        /* ====================================================================
-         *   ò
-         * ==================================================================== */
         QTabWidget::pane {
             border: none;
             background: transparent;
@@ -317,9 +415,6 @@ int main(int argc, char *argv[])
             font-weight: bold;
         }
 
-        /* ====================================================================
-         *   
-         * ==================================================================== */
         QGroupBox {
             font-weight: bold;
             border: 1px solid #E8ECF1;
@@ -334,9 +429,6 @@ int main(int argc, char *argv[])
             color: #2C3E50;
         }
 
-        /* ====================================================================
-         *   //
-         * ==================================================================== */
         QStatusBar {
             background-color: #FFFFFF;
             border-top: 1px solid #E8ECF1;
@@ -344,9 +436,6 @@ int main(int argc, char *argv[])
             font-size: 13px;
         }
 
-        /* ====================================================================
-         *   
-         * ==================================================================== */
         QToolTip {
             background-color: #2C3E50;
             color: white;
@@ -356,54 +445,114 @@ int main(int argc, char *argv[])
         }
     )");
 
-    // =========================================================================
-    // 4: 
-    // :  StorageManager  CategoryManager
-    //  Ledger Ledger 
-    // =========================================================================
+    const QString dataDirectory =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (dataDirectory.isEmpty() || !QDir().mkpath(dataDirectory) ||
+        !QFileInfo(dataDirectory).isDir()) {
+        QMessageBox::critical(nullptr, "启动失败",
+                              "无法创建应用数据目录。请检查当前用户权限。");
+        return 1;
+    }
 
-    // 4a. 洢   "data"
-    //     / data/ 
-    StorageManager storage("data");
+    QLockFile dataLock(QDir(dataDirectory).filePath("dailyaccount.lock"));
+    dataLock.setStaleLockTime(0);
+    if (!dataLock.tryLock(100)) {
+        QMessageBox::critical(nullptr, "启动失败",
+                              lockFailureMessage(dataLock.error()));
+        return 1;
+    }
 
-    // 4b.   
-    //     ... н...
-    CategoryManager catMan;
+    StorageManager storage(nativePath(dataDirectory));
+    if (!storage.isReady()) {
+        QMessageBox::critical(nullptr, "启动失败",
+            QString::fromStdString(storage.lastError()));
+        return 1;
+    }
 
-    // 4c. 
-    //     Уcategories.dat 
-    storage.loadCategories(catMan);
+    QString migratedFrom;
+    QString migrationError;
+    if (!migrateDiscoveredData(storage, dataDirectory,
+                               migratedFrom, migrationError)) {
+        QMessageBox::critical(nullptr, "数据迁移失败", migrationError);
+        return 1;
+    }
 
-    // 4d.   洢
-    //     : &ζ Ledger 
-    //      storage  catMan 
-    Ledger ledger(storage, catMan);
+    if (!directoryHasLedgerSnapshot(dataDirectory) && storage.hasBackup()) {
+        const bool hasLegacyData = directoryHasLegacyData(dataDirectory);
+        StoredData backupData;
+        if (!storage.loadBackup(backupData)) {
+            if (!hasLegacyData) {
+                QMessageBox::critical(nullptr, "数据加载失败",
+                    QStringLiteral("数据目录中仅有备份，但备份无效：\n") +
+                    QString::fromStdString(storage.lastError()));
+                return 1;
+            }
+            QMessageBox::warning(nullptr, "备份无效",
+                QStringLiteral("新版备份文件已损坏，将尝试读取保留的旧版数据：\n") +
+                QString::fromStdString(storage.lastError()));
+        } else {
+            const auto choice = QMessageBox::question(
+                nullptr, "发现数据备份",
+                QString("当前数据快照缺失，但检测到完整备份。是否恢复该备份？%1")
+                    .arg(hasLegacyData
+                        ? "\n选择“否”将改为读取较旧的旧版数据。"
+                        : ""),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+            if (choice == QMessageBox::Yes && !storage.restoreBackup()) {
+                QMessageBox::critical(nullptr, "备份恢复失败",
+                    QString::fromStdString(storage.lastError()));
+                return 1;
+            }
+            if (choice != QMessageBox::Yes && !hasLegacyData) return 1;
+        }
+    }
 
-    // 4e.    records.dat
-    //     ·
-    ledger.load();
+    Ledger ledger(storage);
+    if (!ledger.load()) {
+        const QString loadError = QString::fromStdString(ledger.lastError());
+        if (!storage.hasBackup()) {
+            QMessageBox::critical(nullptr, "数据加载失败", loadError);
+            return 1;
+        }
 
-    // =========================================================================
-    // 5: 
-    // MainWindow :
-    //   - ///
-    //   - 4沢 QStackedWidget
-    //   - 
-    //   - 棨
-    // =========================================================================
-    MainWindow window(ledger, catMan);
-    window.show();  // show() Qt 
+        StoredData backupData;
+        if (!storage.loadBackup(backupData)) {
+            QMessageBox::critical(nullptr, "数据加载失败",
+                loadError + "\n\n检测到备份文件，但备份也已损坏：\n" +
+                QString::fromStdString(storage.lastError()));
+            return 1;
+        }
 
-    // =========================================================================
-    // 6:  Qt 
-    // app.exec()  Qt 
-    // ""
-    //  exec() main 
-    // =========================================================================
+        const auto choice = QMessageBox::question(
+            nullptr, "数据加载失败",
+            loadError + "\n\n检测到上一版完整备份，是否恢复备份？\n"
+                        "当前损坏文件会保留为 ledger.dat.corrupt。",
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (choice != QMessageBox::Yes) return 1;
+        if (!storage.restoreBackup() || !ledger.load()) {
+            const std::string error = storage.lastError().empty()
+                ? ledger.lastError()
+                : storage.lastError();
+            QMessageBox::critical(nullptr, "备份恢复失败",
+                                  QString::fromStdString(error));
+            return 1;
+        }
+    }
+
+    if (ledger.loadedLegacyFormat() && !ledger.save()) {
+        QMessageBox::critical(nullptr, "数据升级失败",
+            QStringLiteral("旧数据已成功读取，但无法写入新版安全快照：\n") +
+            QString::fromStdString(ledger.lastError()));
+        return 1;
+    }
+    if (!migratedFrom.isEmpty()) {
+        QMessageBox::information(nullptr, "数据迁移完成",
+            QStringLiteral("旧数据已验证并转换为安全快照。原文件仍保留在：\n") +
+            migratedFrom);
+    }
+
+    MainWindow window(ledger);
+    window.show();
+
     return app.exec();
 }
-
-// ============================================================================
-// : main_gui.cpp
-//  GUI νá
-// ============================================================================

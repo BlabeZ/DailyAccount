@@ -107,7 +107,8 @@ public:
      *     加上 explicit 后，只能显式调用构造函数。
      * =========================================================================
      */
-    explicit DashboardPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent = nullptr);
+    explicit DashboardPage(Ledger& ledger, const CategoryManager& catMan,
+                           QWidget *parent = nullptr);
 
     /*
      * =========================================================================
@@ -220,7 +221,7 @@ private:
      * -------------------------------------------------------------------------
      * 功能描述：
      *     刷新"最近流水记录"表格中的数据。
-     *     从账本中读取全部流水记录，按 ID 降序排列（最新的记录在最后），
+     *     从账本中读取全部流水记录，按日期和 ID 降序排列，
      *     取最近 10 条（或更少，如果总记录数不足 10 条）显示在表格中。
      *
      *     表格有五列：
@@ -306,7 +307,7 @@ private:
      * =========================================================================
      */
     Ledger& m_ledger;                // 账本对象引用（数据来源）
-    CategoryManager& m_catMan;      // 分类管理器引用（分类信息来源）
+    const CategoryManager& m_catMan; // 分类管理器只读视图
 
     // 汇总卡片
     QLabel *m_cardIncome;           // 本月总收入卡片标签

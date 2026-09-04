@@ -14,13 +14,16 @@
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QMessageBox>
-#include <QFile>
+#include <QSaveFile>
 #include <QTextStream>
 #include <QDate>
 #include <QDateTime>
 #include <QStandardPaths>
 #include <QDir>
+#include <functional>
 #include <set>
+#include <map>
+#include <string>
 #include <vector>
 
 OtherPage::OtherPage(Ledger& ledger, QWidget *parent)
@@ -90,7 +93,7 @@ QWidget* OtherPage::createFeatureListPage()
     QVBoxLayout *text2 = new QVBoxLayout;
     QLabel *t2 = new QLabel("清除数据");
     t2->setStyleSheet("font-size: 16px; font-weight: bold; color: #E74C3C; background: transparent;");
-    QLabel *d2 = new QLabel("永久删除所有记录和自定义分类");
+    QLabel *d2 = new QLabel("清除当前记录和自定义分类（保留最近安全备份）");
     d2->setStyleSheet("font-size: 12px; color: #7F8C8D; background: transparent;");
     text2->addWidget(t2);
     text2->addWidget(d2);
@@ -127,7 +130,7 @@ QWidget* OtherPage::createExportDetailPage()
     QLabel *desc = new QLabel(
         "将所有记账记录导出为一个 TXT 文本文档，保存在桌面。\n"
         "您可以用记事本打开查看、打印，或分享给他人。\n\n"
-        "文件命名格式: 记账明细-至2026-06-19.txt（日期自动取当前）\n\n"
+        "文件命名格式: 记账明细-2026-06-19-143000.txt（时间自动生成）\n\n"
         "导出内容包含:\n"
         "  • 导出时间戳\n"
         "  • 总收入 / 总支出 / 结余 汇总\n"
@@ -170,8 +173,8 @@ QWidget* OtherPage::createClearDetailPage()
     layout->addWidget(title);
 
     QLabel *desc = new QLabel(
-        "永久删除所有记账记录和自定义分类。\n\n"
-        "⚠️ 此操作不可撤销！\n"
+        "清除当前账本中的所有记账记录和自定义分类。\n\n"
+        "⚠️ 系统会暂时保留清除前的安全备份；后续成功修改会替换该备份。\n"
         "⚠️ 建议先使用「数据导出」功能备份数据。\n"
         "⚠️ 需要经过三次确认才会执行删除。");
     desc->setStyleSheet("font-size: 13px; color: #555; background: transparent; line-height: 1.6;");
@@ -197,24 +200,24 @@ void OtherPage::showFeatureList()   { m_stack->setCurrentIndex(0); }
 void OtherPage::showExportDetail()  { m_stack->setCurrentIndex(1); }
 void OtherPage::showClearDetail()   { m_stack->setCurrentIndex(2); }
 
-// ========== 导出逻辑（不变）==========
+// ========== 导出逻辑 ==========
 void OtherPage::onExportData()
 {
-    const auto& records = m_ledger.getAllRecords();
+    const auto records = m_ledger.getAllRecords();
     if (records.empty()) {
         QMessageBox::information(this, "提示", "当前没有任何记账记录，无法导出。");
         return;
     }
     QString content = formatRecords();
-    QString today = QDate::currentDate().toString("yyyy-MM-dd");
-    QString fileName = QString("记账明细-至%1.txt").arg(today);
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd-hhmmss");
+    QString fileName = QString("记账明细-%1.txt").arg(timestamp);
     QString desktopPath = getDesktopPath();
     if (desktopPath.isEmpty()) {
         QMessageBox::warning(this, "导出失败", "无法获取桌面文件夹路径。");
         return;
     }
     QString fullPath = desktopPath + "/" + fileName;
-    QFile file(fullPath);
+    QSaveFile file(fullPath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QMessageBox::warning(this, "导出失败", "无法创建文件: " + fullPath);
         return;
@@ -222,7 +225,16 @@ void OtherPage::onExportData()
     QTextStream stream(&file);
     stream.setGenerateByteOrderMark(true);
     stream << content;
-    file.close();
+    stream.flush();
+    if (stream.status() != QTextStream::Ok) {
+        file.cancelWriting();
+        QMessageBox::warning(this, "导出失败", "写入文件失败: " + fullPath);
+        return;
+    }
+    if (!file.commit()) {
+        QMessageBox::warning(this, "导出失败", "写入文件失败: " + fullPath);
+        return;
+    }
     QMessageBox::information(this, "导出成功",
         QString("文件已保存到桌面:\n%1\n共 %2 条记录").arg(fileName).arg(records.size()));
 }
@@ -240,56 +252,66 @@ QString OtherPage::getDesktopPath() const
 
 QString OtherPage::formatRecords() const
 {
-    const auto& records = m_ledger.getAllRecords();
+    const auto records = m_ledger.getAllRecords();
     QString out;
     out += "══════════ 记账明细导出 ══════════\n";
     out += QString("导出时间: %1\n").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
     out += QString("总收入: +¥%1  总支出: -¥%2  结余: %3¥%4  共 %5 条\n\n")
-               .arg(m_ledger.getTotalIncome(), 0, 'f', 2)
-               .arg(m_ledger.getTotalExpense(), 0, 'f', 2)
+               .arg(QString::fromStdString(formatMoney(m_ledger.getTotalIncome())))
+               .arg(QString::fromStdString(formatMoney(m_ledger.getTotalExpense())))
                .arg(m_ledger.getBalance() >= 0 ? "+" : "")
-               .arg(m_ledger.getBalance(), 0, 'f', 2)
+               .arg(QString::fromStdString(formatMoney(m_ledger.getBalance())))
                .arg(records.size());
 
-    std::set<std::string> dateSet;
-    for (const auto& r : records) dateSet.insert(r.date);
-    std::vector<std::string> dates(dateSet.rbegin(), dateSet.rend());
-
-    for (const auto& date : dates) {
-        std::vector<Record> dayRecs;
-        double in = 0, ex = 0;
-        for (const auto& r : records) {
-            if (r.date == date) {
-                dayRecs.push_back(r);
-                if (r.type == RecordType::INCOME) in += r.amount; else ex += r.amount;
-            }
+    struct DayRecords {
+        std::vector<const Record*> records;
+        Money income = 0;
+        Money expense = 0;
+    };
+    std::map<std::string, DayRecords, std::greater<std::string>> grouped;
+    for (const auto& record : records) {
+        auto& day = grouped[record.date];
+        day.records.push_back(&record);
+        if (record.type == RecordType::INCOME) {
+            day.income += record.amountCents;
+        } else {
+            day.expense += record.amountCents;
         }
+    }
+
+    for (const auto& [date, day] : grouped) {
+        const Money net = day.income - day.expense;
         out += QString("━━━ %1  收入+¥%2  支出-¥%3  净额%4¥%5  共%6笔 ━━━\n")
-                   .arg(QString::fromStdString(date)).arg(in, 0, 'f', 2).arg(ex, 0, 'f', 2)
-                   .arg(in - ex >= 0 ? "+" : "").arg(in - ex, 0, 'f', 2).arg(dayRecs.size());
-        for (const auto& r : dayRecs) {
-            QString amt = (r.type == RecordType::INCOME) ? QString("+%1").arg(r.amount, 0, 'f', 2)
-                                                          : QString("-%1").arg(r.amount, 0, 'f', 2);
+                   .arg(QString::fromStdString(date))
+                   .arg(QString::fromStdString(formatMoney(day.income)))
+                   .arg(QString::fromStdString(formatMoney(day.expense)))
+                   .arg(net >= 0 ? "+" : "")
+                   .arg(QString::fromStdString(formatMoney(net)))
+                   .arg(day.records.size());
+        for (const Record* record : day.records) {
+            QString amount = QString(record->type == RecordType::INCOME ? "+%1" : "-%1")
+                .arg(QString::fromStdString(formatMoney(record->amountCents)));
             out += QString("  %1  %2  %3  %4\n")
-                       .arg(QString::fromStdString(typeToChinese(r.type)))
-                       .arg(amt).arg(QString::fromStdString(r.category))
-                       .arg(QString::fromStdString(r.note));
+                       .arg(QString::fromStdString(typeToChinese(record->type)))
+                       .arg(amount)
+                       .arg(QString::fromStdString(record->displayCategory()))
+                       .arg(QString::fromStdString(record->note));
         }
         out += "\n";
     }
     return out;
 }
 
-// ========== 清除数据逻辑（三次确认，不变）==========
+// ========== 清除数据逻辑（三次确认）==========
 void OtherPage::onClearData()
 {
     auto confirm = [this](int step) -> bool {
         QMessageBox msg(this);
         msg.setIcon(step == 3 ? QMessageBox::Critical : QMessageBox::Warning);
         msg.setWindowTitle(QString("清除数据 - 第%1次确认").arg(step));
-        if (step == 1) msg.setText("⚠️ 确定要清除所有记账数据吗？\n此操作不可撤销！");
-        else if (step == 2) msg.setText("⚠️ 所有记账记录和自定义分类将被永久删除。\n是否继续？");
-        else msg.setText("🚫 这是最后一次确认。\n清除后数据无法恢复！");
+        if (step == 1) msg.setText("⚠️ 确定要清除当前账本中的全部数据吗？");
+        else if (step == 2) msg.setText("⚠️ 所有记账记录和自定义分类将从当前账本移除。\n是否继续？");
+        else msg.setText("🚫 这是最后一次确认。\n系统仅暂时保留上一版安全备份，请先按需导出。");
         msg.setStandardButtons(QMessageBox::NoButton);
         QPushButton *btnY = msg.addButton(step == 3 ? "确认清除" : "继续", QMessageBox::YesRole);
         msg.addButton("取消", QMessageBox::NoRole);
@@ -304,9 +326,12 @@ void OtherPage::onClearData()
     if (!confirm(2)) return;
     if (!confirm(3)) return;
 
-    const auto& all = m_ledger.getAllRecords();
-    for (int i = (int)all.size() - 1; i >= 0; i--)
-        m_ledger.deleteRecord(all[i].id);
+    if (!m_ledger.clearAllData()) {
+        QMessageBox::critical(this, "清除失败",
+                              QString::fromStdString(m_ledger.lastError()));
+        return;
+    }
 
-    QMessageBox::information(this, "完成", "✅ 所有数据已清除。");
+    QMessageBox::information(this, "完成", "当前账本数据已清除，上一版安全备份已保留。");
+    emit dataChanged();
 }

@@ -15,6 +15,7 @@
 #include <QStackedWidget>
 #include <QPushButton>
 #include <QLabel>
+#include <QString>
 
 class Ledger;
 
@@ -24,6 +25,9 @@ class OtherPage : public QWidget {
 public:
     explicit OtherPage(Ledger& ledger, QWidget *parent = nullptr);
     void refresh();
+
+signals:
+    void dataChanged();
 
 private slots:
     void showFeatureList();

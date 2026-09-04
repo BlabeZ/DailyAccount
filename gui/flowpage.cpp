@@ -3,13 +3,12 @@
  * 文件名:   flowpage.cpp
  * 所属模块: GUI - 流水记录列表页面（实现文件）
  * 功    能: FlowPage 类的完整实现。包含：
- *           1. 界面搭建（setupUI）—— 标题、筛选工具栏、流水树、分页栏
- *           2. 数据加载（loadPage）—— 从账本读取、筛选、分组、分页、渲染
- *           3. 交互逻辑（onAdd/onEdit/onDelete/翻页/筛选）
+ *           1. 加载 Qt Designer 生成的标题、筛选工具栏和流水树
+ *           2. 数据加载（loadPage）—— 从账本读取、筛选、分组和渲染
+ *           3. 交互逻辑（onAdd/onEdit/onDelete/筛选）
  * 编    码: UTF-8
  * 说    明: 本文件包含大量详细注释，逐行解释每个操作背后的"为什么"。
- *           建议按照函数从上到下的顺序阅读，先看 setupUI 了解界面结构，
- *           再看 loadPage 理解数据渲染流程，最后看各个槽函数了解交互逻辑。
+ *           界面结构定义在 flowpage.ui，数据渲染集中在 loadPage。
  * ============================================================================
  */
 
@@ -26,6 +25,16 @@
 #include <QHeaderView>    // 【表头控件】QTreeWidget 的列标题行
 #include <QMessageBox>    // 【消息对话框】弹出提示、警告、确认等窗口
 #include <QDate>          // 【日期类】提供日期计算和格式化功能
+#include <QColor>
+#include <QFont>
+#include <QPushButton>
+#include <QSize>
+#include <QTreeWidget>
+#include <algorithm>
+#include <functional>
+#include <map>
+#include <string>
+#include <vector>
 
 
 // ============================================================================
@@ -42,15 +51,15 @@
  *   1. 调用 QWidget 的构造函数，将 parent 传入，建立父子关系
  *   2. 用初始化列表将 m_ledger 和 m_catMan 绑定到传入的引用
  *      （C++ 引用必须在初始化列表中绑定，不能在函数体内赋值）
- *   3. 调用 setupUI() 创建整个页面的界面
+ *   3. 调用生成的 Ui::FlowPage::setupUi() 创建页面
  *
  * 注  意: 构造函数不加载数据。界面创建完成后是空白的，需要外部调用
  *         refresh() 才会从账本读取数据并显示。
  */
-FlowPage::FlowPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
+FlowPage::FlowPage(Ledger& ledger, const CategoryManager& catMan, QWidget *parent)
     : QWidget(parent)           // 先调用父类 QWidget 的构造函数
     , m_ledger(ledger)          // 绑定账本引用
-    , m_catMan(catMan)          // 绑定分类管理器引用
+    , m_categoryManager(catMan) // 绑定分类管理器引用
     , ui(new Ui::FlowPage)      // 初始化 UI
 {
     // 加载由 Qt Designer / uic 生成的界面
@@ -58,8 +67,18 @@ FlowPage::FlowPage(Ledger& ledger, CategoryManager& catMan, QWidget *parent)
 
     // 设置默认筛选日期：起始日期为本月1日，结束日期为今天
     QDate today = QDate::currentDate();
+    const QDate minimumDate(kMinimumRecordYear, 1, 1);
+    const QDate maximumDate(kMaximumRecordYear, 12, 31);
+    ui->m_filterStart->setDateRange(minimumDate, maximumDate);
+    ui->m_filterEnd->setDateRange(minimumDate, maximumDate);
+    QDate latestDate = today;
+    for (const auto& record : m_ledger.getAllRecords()) {
+        const QDate recordDate = QDate::fromString(
+            QString::fromStdString(record.date), "yyyy-MM-dd");
+        if (recordDate.isValid() && recordDate > latestDate) latestDate = recordDate;
+    }
     ui->m_filterStart->setDate(QDate(today.year(), today.month(), 1));
-    ui->m_filterEnd->setDate(today);
+    ui->m_filterEnd->setDate(latestDate);
 
     // 配置流水树的表头：列宽和缩放模式
     ui->m_tree->header()->setSectionResizeMode(0, QHeaderView::Interactive);
@@ -112,6 +131,10 @@ void FlowPage::refresh()
 // ============================================================================
 void FlowPage::onFilterChanged()
 {
+    if (ui->m_filterStart->date() > ui->m_filterEnd->date()) {
+        QMessageBox::warning(this, "筛选范围错误", "开始日期不能晚于结束日期。");
+        return;
+    }
     loadPage();
 }
 
@@ -122,7 +145,7 @@ void FlowPage::onFilterChanged()
 /*
  * 函  数: FlowPage::loadPage
  * 功  能: 从账本中读取指定日期范围内的流水，按类型过滤、日期分组、
- *         分页计算后渲染到 QTreeWidget。
+ *         然后渲染到可滚动的 QTreeWidget。
  */
 void FlowPage::loadPage()
 {
@@ -131,6 +154,7 @@ void FlowPage::loadPage()
     QString startDate = ui->m_filterStart->date().toString("yyyy-MM-dd");
     QString endDate   = ui->m_filterEnd->date().toString("yyyy-MM-dd");
     QString typeFilter = ui->m_filterType->currentText();
+    if (startDate > endDate) return;
 
     // 从账本获取指定日期范围内的所有流水
     std::vector<Record> filtered;
@@ -149,6 +173,13 @@ void FlowPage::loadPage()
     for (const auto& t : filtered) {
         grouped[t.date].push_back(t);
     }
+    for (auto& [date, records] : grouped) {
+        static_cast<void>(date);
+        std::sort(records.begin(), records.end(),
+            [](const Record& left, const Record& right) {
+                return left.id > right.id;
+            });
+    }
 
     // 获取所有日期并倒序排列
     std::vector<std::string> dates;
@@ -157,20 +188,10 @@ void FlowPage::loadPage()
     }
     std::sort(dates.begin(), dates.end(), std::greater<std::string>());
 
-    // 渲染全部日期组（滚动浏览，不再分页）
+    // 渲染筛选范围内的全部日期组
     for (int di = 0; di < (int)dates.size(); di++) {
         const std::string& date = dates[di];
         const auto& txns = grouped[date];
-
-        // 计算当日汇总
-        double dayIncome = 0;
-        double dayExpense = 0;
-        for (const auto& t : txns) {
-            if (t.type == RecordType::INCOME)
-                dayIncome += t.amount;
-            else
-                dayExpense += t.amount;
-        }
 
         // 创建母行（日期头部）：仅显示日期和笔数，其余栏为空
         QTreeWidgetItem *dateItem = new QTreeWidgetItem;
@@ -184,15 +205,14 @@ void FlowPage::loadPage()
         dateItem->setSizeHint(0, QSize(0, 36));
         ui->m_tree->addTopLevelItem(dateItem);
 
-        // 创建子行（流水明细）：日期栏留空，ID栏显示当天序号
-        int localIdx = 0;
+        // 创建子行（流水明细）
         for (const auto& t : txns) {
             QTreeWidgetItem *txItem = new QTreeWidgetItem;
-            txItem->setText(1, QString::number(++localIdx));
+            txItem->setText(1, QString::number(t.id));
             txItem->setText(2, QString::fromStdString(typeToChinese(t.type)));
             txItem->setText(3, QString(t.type == RecordType::INCOME ? "+%1" : "-%1")
-                                   .arg(t.amount, 0, 'f', 2));
-            txItem->setText(4, QString::fromStdString(t.category));
+                                   .arg(QString::fromStdString(formatMoney(t.amountCents))));
+            txItem->setText(4, QString::fromStdString(t.displayCategory()));
             txItem->setText(5, QString::fromStdString(t.note));
 
             QColor txColor = (t.type == RecordType::INCOME)
@@ -214,14 +234,16 @@ void FlowPage::loadPage()
 // ============================================================================
 void FlowPage::onAdd()
 {
-    FlowDialog dlg(m_catMan, this);
+    FlowDialog dlg(m_categoryManager, this);
 
     if (dlg.exec() == QDialog::Accepted) {
-        m_ledger.addRecord(dlg.getRecord());
-        refresh();
-        if (auto *mw = window()) {
-            QMetaObject::invokeMethod(mw, "refreshAll", Qt::QueuedConnection);
+        const Record record = dlg.getRecord();
+        if (!m_ledger.addRecord(record)) {
+            showLedgerError("添加记录");
+            return;
         }
+        includeDateInFilter(QString::fromStdString(record.date));
+        emit dataChanged();
     }
 }
 
@@ -231,17 +253,19 @@ void FlowPage::onAdd()
 // ============================================================================
 void FlowPage::onEdit(int id)
 {
-    Record* t = m_ledger.findRecord(id);
+    const auto t = m_ledger.findRecord(id);
     if (!t) return;
 
-    FlowDialog dlg(m_catMan, *t, this);
+    FlowDialog dlg(m_categoryManager, *t, this);
 
     if (dlg.exec() == QDialog::Accepted) {
-        m_ledger.updateRecord(id, dlg.getRecord());
-        refresh();
-        if (auto *mw = window()) {
-            QMetaObject::invokeMethod(mw, "refreshAll", Qt::QueuedConnection);
+        const Record updated = dlg.getRecord();
+        if (!m_ledger.updateRecord(id, updated)) {
+            showLedgerError("修改记录");
+            return;
         }
+        includeDateInFilter(QString::fromStdString(updated.date));
+        emit dataChanged();
     } else if (dlg.deleteRequested()) {
         onDelete(id);
     }
@@ -253,15 +277,15 @@ void FlowPage::onEdit(int id)
 // ============================================================================
 void FlowPage::onDelete(int id)
 {
-    Record* t = m_ledger.findRecord(id);
+    const auto t = m_ledger.findRecord(id);
     if (!t) return;
 
     QMessageBox msgBox(this);
     msgBox.setWindowTitle("确认删除");
     msgBox.setText(QString("确定要删除以下记录吗？\n\n日期: %1\n金额: %2\n分类: %3")
                        .arg(QString::fromStdString(t->date))
-                       .arg(t->amount, 0, 'f', 2)
-                       .arg(QString::fromStdString(t->category)));
+                       .arg(QString::fromStdString(formatMoney(t->amountCents)))
+                       .arg(QString::fromStdString(t->displayCategory())));
     msgBox.setIcon(QMessageBox::Question);
     msgBox.setStandardButtons(QMessageBox::NoButton);
     QPushButton *btnYes = msgBox.addButton("确认删除", QMessageBox::YesRole);
@@ -277,12 +301,24 @@ void FlowPage::onDelete(int id)
 
     msgBox.exec();
     if (msgBox.clickedButton() == btnYes) {
-        m_ledger.deleteRecord(id);
-        refresh();
-        if (auto *mw = window()) {
-            QMetaObject::invokeMethod(mw, "refreshAll", Qt::QueuedConnection);
+        if (!m_ledger.deleteRecord(id)) {
+            showLedgerError("删除记录");
+            return;
         }
+        emit dataChanged();
     }
 }
 
+void FlowPage::includeDateInFilter(const QString& date)
+{
+    const QDate parsed = QDate::fromString(date, "yyyy-MM-dd");
+    if (!parsed.isValid()) return;
+    if (parsed < ui->m_filterStart->date()) ui->m_filterStart->setDate(parsed);
+    if (parsed > ui->m_filterEnd->date()) ui->m_filterEnd->setDate(parsed);
+}
 
+void FlowPage::showLedgerError(const QString& action)
+{
+    QMessageBox::critical(this, action + "失败",
+        QString::fromStdString(m_ledger.lastError()));
+}
